@@ -37,3 +37,41 @@ Giả sử chúng ta có 100 triệu DAU và 200 triệu businesses
 Một ngày sẽ có **24 * 60 * 60 = 86,400 ~ 10^5 (s)**
 Một user sẽ có 5 search queries 1 ngày
 Search QPS = **100 triệu * 5 / 10^5 = 5000**
+
+## Bước 2: High-level design
+
+### API Design
+
+Sử dụng Restfult API.
+
+#### GET /v1/search/nearby
+
+Endpoint này sẽ trả về các businesses dựa theo tham số tìm kiếm. Kết quả sẽ thường được paginate nhưng trong chương này ta sẽ không đề cập tới nó.
+
+Params:
+
+- latitude: vĩ độ - **decimal**
+- longtitude: kinh độ - **decimal**
+- radius: bán kính tìm kiếm - **int**
+
+Với thông tin về business ta cần các Endpoints riêng để lấy về những thông tin này.
+
+#### APIs cho business
+
+- GET /v1/businesses/:id (lấy thông tin về business)
+- POST /v1/businesses (tạo mới business)
+- PUT /v1/businesses/:id (cập nhật thông tin business)
+- DELETE /v1/businesses/:id (xoá business)
+
+### Data model
+
+#### Read/ Write ratio
+
+Tỉ lệ đọc sẽ cao hơn do:
+
+- Người dùng đa phần sẽ tìm kiếm các businesses xung quanh mình
+- Người dùng cũng cần xem các thông tin chi tiết về business
+
+> Với các hệ thống đọc nhiều thì relational database như MySQL là một sự lựa chọn tốt
+
+#### Data schema
