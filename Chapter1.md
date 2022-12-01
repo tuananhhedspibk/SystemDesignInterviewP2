@@ -75,3 +75,40 @@ Tỉ lệ đọc sẽ cao hơn do:
 > Với các hệ thống đọc nhiều thì relational database như MySQL là một sự lựa chọn tốt
 
 #### Data schema
+
+Key tables:
+
+- Business table
+- Geo index table
+
+##### Business table
+
+Gồm thông tin chi tiết về business
+
+![IMG_0892](https://user-images.githubusercontent.com/15076665/205073484-5690fa0b-5d15-4a91-879f-7084311d79f3.jpg)
+
+### High-level design
+
+Hệ thống bao gồm 2 phần chính:
+
+- Location-based service (LBS)
+- Business-related service
+
+![IMG_0892](https://user-images.githubusercontent.com/15076665/205076892-bf4c9e7e-cbc7-4886-bd4f-c8b92126f9d9.png)
+
+#### Location-based service (LBS)
+
+LBS là phần quan trọng nhất của hệ thống, nó đảm nhận nhiệm vụ tìm kiếm các business gần nhất dựa theo `vị trí` và `bán kính` của người dùng.
+
+Service này:
+
+- Hoàn toàn chỉ đọc chứ không ghi
+- QPS cao, đặc biệt trong giờ cao điểm hoặc khu vực sầm uất
+- Stateless nên dễ dàng scale horizontal
+
+#### Business service
+
+Gồm 2 nhiệm vụ chính:
+
+- Business owner có thể tạo mới, cập nhật, xoá business. Chủ yếu là thao tác ghi, tuy nhiên QPS thấp.
+- User có thể xem thông tin về business. Chỉ đọc chứ không ghi, tuy nhiên QPS khá cao vào giờ cao điểm.
