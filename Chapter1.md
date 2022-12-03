@@ -112,3 +112,92 @@ Gồm 2 nhiệm vụ chính:
 
 - Business owner có thể tạo mới, cập nhật, xoá business. Chủ yếu là thao tác ghi, tuy nhiên QPS thấp.
 - User có thể xem thông tin về business. Chỉ đọc chứ không ghi, tuy nhiên QPS khá cao vào giờ cao điểm.
+
+#### Database Cluster
+
+Được triển khai theo hướng `primary-secondary` trong đó:
+
+- Primary database sẽ dùng để ghi
+- Các secondary (replicas) sẽ chuyên dùng để đọc và được đồng bộ hoá từ phía primary database
+
+Có một vấn đề ở đây đó là quá trình replicate dữ liệu từ `primary database` sang `secondary database` sẽ làm ảnh hưởng đến việc truy xuất thông tin về business của người dùng tuy nhiên các thông tin về business cũng không bị thay đổi nhiều và cũng không yêu cầu phải được cập nhật real-time.
+
+#### Khả năng scale của business service và LBS
+
+Do business service và LBS đều là `stateless server` do đó rất dễ dàng để:
+
+- Scale up trong khung giờ cao điểm
+- Scale down trong sleep time
+
+Nếu triển khai trên cloud service thì việc triển khai service ra các region hoặc zones khác nhau cũng không phải là vấn đề quá khó khăn ở đây.
+
+### Giải thuật để lấy về các businesses gần người dùng nhất
+
+Các dữ liệu về không gian địa lý, toạ độ hiện có sẵn với các phiên bản Redis hoặc Postgres nhưng điều quan trọng khi tiến hành phỏng vấn đó là việc ta cần hiểu được cơ chế hoạt động của `geospatial index` hơn là chỉ đơn thuần đưa ra tên của DB.
+
+#### Giải thuật 1: Tìm kiếm 2 chiều
+
+Giải thuật này khá đơn giản, ta chỉ thuần tuý vẽ một đường tròn với bán kính cho trước, sau đó quét các business trong phạm vi của đường tròn đó.
+
+![Screen Shot 2022-12-03 at 12 58 22](https://user-images.githubusercontent.com/15076665/205421771-f1c8eabf-1c60-456b-b50c-8ed24e5ca22a.png)
+
+Quá trình này có thể được mô tả bằng mã SQL giả sau:
+
+```SQL
+SELECT business_id, latitude, longtitude FROM businesses
+WHERE (latitude <= {:my_lat} + radius AND latitude >= {:my_lat} - radius)
+  AND (longtitude <= {:my_long} + radius AND longtitude >= {:my_long} - radius)
+```
+
+Câu query này khá đơn giản tuy nhiên nó lại gặp vấn đề về hiệu năng, nguyên nhân là do nó phải quét qua **toàn bộ dữ liệu trong bảng** dẫn đến việc tốc độ truy vấn bị ảnh hưởng rất nhiều. Ngay cả khi ta đánh index cho 2 cột `latitude` và `longtitude` thì hiệu năng cũng không được cải thiện nhiều lắm. Cốt lõi ở đây đó là việc ta cần "join" 2 datasets lại (đây là thao tác **CỰC KÌ TỐN KÉM CHI PHÍ CŨNG NHƯ THỜI GIAN**) như hình minh hoạ bên dưới.
+
+![IMG_0894](https://user-images.githubusercontent.com/15076665/205422422-6343a697-520c-49ce-85c8-fd95fe48ce2d.jpg)
+
+Việc đánh index chỉ hiệu quả khi dữ liệu là **dữ liệu một chiều**. Tuy nhiên ta vẫn có thể map dữ liệu 2 chiều thành 1 chiều.
+
+Trước khi đi sâu vào việc mapping dữ liệu 2 chiều thành 1 chiều, ta sẽ nói về **các phương thức đánh index**
+
+![IMG_0895](https://user-images.githubusercontent.com/15076665/205422881-004c3738-2044-4900-a20c-a7d812124fa9.jpg)
+
+Trong phần này ta chỉ tập trung vào các phương thức:
+
+- Hash: even grid, geohash
+- Tree: Quadtree, Google S2
+
+do chúng đều là các phương thức phổ biến nhất hiện nay.
+
+Cách thức triển khai các thuật toán có thể khác nhau tuy nhiên tư tưởng chung đều là **Chia nhỏ map thành các khu vực con, đánh index từng phần để tiến hành tìm kiếm nhanh hơn**
+
+Tiếp theo ta sẽ nói về các giải thuật trên.
+
+#### Giải thuật 2: Evenly divided grid
+
+Cách làm ở đây đó là chia bản đồ thế giới thành dạng lưới, túm các businesses lại theo từng lưới khác nhau và một business chỉ thuộc về 1 lưới duy nhất mà thôi.
+
+![IMG_0896](https://user-images.githubusercontent.com/15076665/205422998-9ecb5893-94f8-4f45-aad1-3db2a33f8f2d.jpg)
+
+Cách làm này có một vấn đề đó là việc các businesses trên thế giới phân bổ không đều đặn (các khu vực thành phố lớn như NewYork sẽ có mật độ business cao hơn so với các đại dương) từ đó dẫn đến sự phân bổ dữ liệu không cần bằng giữa các lưới. Điều ta muốn ở đây là một hệ thống lưới dày hơn ở các khu vực sầm uất và một hệ thống lưới mỏng hơn ở các khu vực "ít sầm uất".
+
+#### Giải thuật 3: Geohash
+
+Giải thuật này sẽ chuyển từ toạ độ 2 chiều sang một dãy số 1 chiều, giải thuật này sẽ chia bản đồ thế giới thành các ô vuông con một cách đệ quy (các ô con này sẽ ngày một nhỏ đi nếu bị chia càng nhiều và càng sâu)
+
+![IMG_0897](https://user-images.githubusercontent.com/15076665/205423308-8f71fc23-63e7-4aa8-a47c-8c71648712fd.jpg)
+
+Đầu tiên ta chia bản đồ thế giới thành 4 mảnh như hình trên
+
+- `Vĩ độ` thuộc khoảng `[-180, 0]` sẽ là `0`
+- `Vĩ độ` thuộc khoảng `[0, 180]` sẽ là `1`
+- `Kinh độ` thuộc khoảng `[-90, 0]` sẽ là `0`
+- `Kinh độ` thuộc khoảng `[0, 90]` sẽ là `1`
+
+Sau đó với từng mảnh con ta lại chia nhỏ thành **4 mảnh con nhỏ hơn nữa**
+
+![IMG_0898](https://user-images.githubusercontent.com/15076665/205423998-a00b9763-3ca4-46e2-b793-771fd56b143d.jpg)
+
+Cứ thế ta chia nhỏ dần cho đến khi đạt đến size mong muốn. Geohash thường sử dụng `base32` để biểu diễn dãy "toạ độ" thu được.
+Ví dụ:
+
+1001 10110 01001 10000 11011 11010 -> `9q9hvu` (base32)
+
+Geohash có 12 mức, tương ứng với mỗi mức là một kích thước "mảnh" khác nhau. Ta thường chỉ quan tâm đến mức từ 4 -> 6, nguyên nhân là do các mức dưới 4 thường sẽ quá to còn các mức trên 6 thì lại quá nhỏ.
