@@ -81,7 +81,7 @@ Key tables:
 - Business table
 - Geo index table
 
-##### Business table
+**Business table:**
 
 Gồm thông tin chi tiết về business
 
@@ -342,3 +342,105 @@ Trong quá trình phỏng vấn ta nên lựa chọn **geohash** và **quadtree*
 
 ## Bước 3: Deep Dive design
 
+### Scale the database
+
+Trong phần này ta sẽ nói về việc scale trên 2 bảng quan trọng đó là:
+
+- Business table
+- Geospatial index table
+
+#### Business table
+
+Cách làm phổ biến đó là sharding thành nhiều database dựa theo sharding key là `bussiness_id`. Cách làm này cũng rất dễ để maintain trong tương lai.
+
+#### Geospatial index table
+
+Geohash và quadtree đều sử dụng bảng này, với trường hợp của geohash sẽ đơn giản hơn để minh hoạ ở đây. Thông thường 1 geohash có nhều businesses bên trong, ta có thể triển khai cấu trúc bảng theo 2 cách tiếp cận sau:
+
+**Cách 1:**
+
+![Screen Shot 2022-12-03 at 18 53 47](https://user-images.githubusercontent.com/15076665/205434929-501f9960-ba04-44e7-acd8-6a1b210c06c3.png)
+
+Như hình trên ta thấy tương ứng với mỗi `geohash` sẽ là một danh sách các business ids (lưu ở dạng JSON array), tức là mọi business ids sẽ được lưu tại một record duy nhất.
+
+**Cách 2:**
+
+![Screen Shot 2022-12-03 at 18 55 13](https://user-images.githubusercontent.com/15076665/205434997-e83addae-fbf3-44d4-82c3-daa77b768f4e.png)
+
+Cách làm này sẽ chỉ lưu một business_id tạo một record mà thôi, từ đó dẫn đến với nhiều business_ids trong cùng một geohash ta sẽ có table data như sau:
+
+![Screen Shot 2022-12-03 at 18 57 11](https://user-images.githubusercontent.com/15076665/205435099-7e6c5317-dcdf-4f2c-ae76-0e8c3afb9e25.png)
+
+**Lời khuyên:**
+
+Hãy lựa chọn cách làm 2 thay vì cách thứ nhất. Nguyên nhân là bởi cách làm thứ nhất sẽ dẫn đến những điều phiền toái như sau:
+
+- Khi update ta phải duyệt toàn bộ JSON array để tìm ra chỗ cần update
+- Khi insert ta cũng phải duyệt toàn bộ JSON array để kiểm tra xem có bị duplicate hay không
+- Hơn thế nữa ta cũng cần phải có cơ chế locking để tránh việc cập nhật đồng thời vào JSON array này
+
+Với cách làm thứ 2 ta chỉ cần thêm, cập nhật 1 bản ghi mới hoặc đang có (dễ dàng hơn rất nhiều) với việc kèm theo đó là `compound_key (geo_hash, business_id)`
+
+#### Scale the geospatial index
+
+Bản thân quadtree cũng chỉ tốn 1.71GB nên dữ liệu geohash cũng sẽ chỉ ở mức tương đương, với mức này thì server hoàn toàn có thể tải được. Tuy nhiên trong trường hợp có quá nhiều requests thì việc chia tải cũng là điều cần thiết nếu không đủ CPU và bộ nhớ để xử lí.
+
+Tuy nhiên chia tải có 2 cách:
+
+- Sharding
+- Replicating
+
+Việc lựa chọn sharding ở đây là không cần thiết do việc sharding là khá phức tạp, hơn thế nữa sharding cần phải thêm vào tầng application dẫn đến việc triển khai sharding là phức tạp hơn so với replicating.
+
+Nên lời khuyên ở đây là sử dụng `replicating`.
+
+### Caching
+
+Trước khi triển khai cache layer, ta cần cân nhắc xem liệu có nhất thiết phải sử dụng đến cache ở đây không. Câu trả lời là có:
+
+- Workload chủ yếu là read, dataset cũng không phải quá lớn, queries cũng không ảnh hưởng đến I/O quá nhiều do đó chúng nên được chạy ở in-memory cache
+- Nếu read performance bị bottleneck, ta có thể thêm các read replicas để cải thiện read performance
+
+Việc sử dụng cache nên được cân nhắc dựa trên:
+
+- Cost analysis
+- Business requirement
+
+Sau khi quyết định sử dụng cache, hãy quyết định đển **chiến lược cache**.
+
+#### Cache key
+
+Một trong những cách lựa chọn cache key đó là dựa theo toạ độ (vĩ độ, kinh độ) của người dùng. Tuy nhiên key này có những vấn đề sau:
+
+- Toạ độ gửi từ mobile device của user có thể không chính xác (ngay cả khi user không di chuyển, toạ độ cũng sẽ thay đổi sau mỗi lần fetch về trên mobile device).
+- Khi người dùng di chuyển thì toạ độ của người dùng cũng sẽ thay đổi theo, tuy nhiên sự thay đổi này đa phần có thể được bỏ qua.
+
+Do đó toạ độ không thích hợp dùng làm cache key. Trong trường hợp lí tưởng, những sự thay đổi nhỏ về mặt vị trí của người dùng cũng sẽ map đến cùng cache key.
+
+Hai giải thuật geohash/ quadtree ở phần trước đều có thể xử lí vấn đề này tốt bởi vì những businesses trong cùng một grid đều có chung geohash.
+
+#### Các loại dữ liệu sẽ được cache
+
+Có 2 loại dữ liệu sẽ được cache để cải thiện hiệu năng của hệ thống:
+
+![Screen Shot 2022-12-03 at 22 29 12](https://user-images.githubusercontent.com/15076665/205443199-5d4de067-f18e-4e53-8523-0057e56aba84.png)
+
+**List of business ids in the grid:**
+
+Cách làm có thể mô tả như trong pseudo code dưới đây
+
+```TS
+const getNearbyBusinessIds = (geohash: string) => {
+  const cacheKey = hash(geohash);
+  let listOfBusinessIds = Redis.get(cacheKey);
+
+  if (!listOfBusinessIds) {
+    listOfBusinessIds = query.executre(`SELECT business_id FROM geohash_index WHERE geohash LIKE ${geohash}`);
+    Redis.set(cacheKey, listOfBusinessIds);
+  }
+
+  return listOfBusinessIds;
+}
+```
+
+Khi tiến hành thêm mới, cập nhật, xoá business thì các thao tác này cũng không tốn quá nhiều effort, đồng thời geohash cũng không cần phải sử dụng cơ chế locking nên các thao tác cập nhật cache để phản ánh đúng dữ liệu mới nhất có thể thực hiện một cách dễ dàng.
