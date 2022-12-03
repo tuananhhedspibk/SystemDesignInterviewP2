@@ -200,4 +200,145 @@ Ví dụ:
 
 1001 10110 01001 10000 11011 11010 -> `9q9hvu` (base32)
 
-Geohash có 12 mức, tương ứng với mỗi mức là một kích thước "mảnh" khác nhau. Ta thường chỉ quan tâm đến mức từ 4 -> 6, nguyên nhân là do các mức dưới 4 thường sẽ quá to còn các mức trên 6 thì lại quá nhỏ.
+Geohash có 12 mức (length), tương ứng với mỗi mức là một kích thước "mảnh" khác nhau. Ta thường chỉ quan tâm đến mức từ 4 -> 6, nguyên nhân là do các mức dưới 4 thường sẽ quá to còn các mức trên 6 thì lại quá nhỏ.
+
+Vậy làm cách nào để có thể chọn được mức geohash phù hợp? Về cơ bản chúng ta muốn tìm một geohash length nhỏ nhất nhưng vẫn có thể bao trùm được bán kính do user chỉ ra. Dưới đây là mối quan hệ tương ứng giữa bán kính (radius) và geohash length
+
+![IMG_0899](https://user-images.githubusercontent.com/15076665/205430082-c0e1ff00-3324-4458-ad7c-7eeb259d1c09.jpg)
+
+Cách làm này về cơ bản là khá ổn, tuy nhiên có một số trường hợp biên mà ta cần xem xét như dưới đây.
+
+##### Boundary issues
+
+Geohash giả định rằng prefix của các chuỗi geohash càng giống nhau thì vị trí của 2 locations sẽ càng gần nhau như hình dưới đây:
+
+![Screen Shot 2022-12-03 at 16 31 25](https://user-images.githubusercontent.com/15076665/205430173-7e1a8805-f13b-4f47-a354-7bb11f88c4e9.png)
+
+**Vấn đề thứ nhất:**
+
+Giả định trên chỉ đúng 1 chiều chứ không hề đúng cho chiều ngược lại bởi lẽ, 2 địa điểm ở cạnh nhau có thể nằm ở "2 mảng to" khác nhau. Do đó câu truy vấn SQL như dưới đây không thể lấy ra toàn bộ các businesses gần người dùng nhất được.
+
+```SQL
+SELECT * FROM geohash_index WHERE geohash LIKE "9q8zn%";
+```
+
+**Vấn đề thứ hai:**
+
+Hai location có thể cho chung geohash prefix khá dài tuy nhiên chúng lại nằm ở "2 mảnh khác nhau".
+
+![Screen Shot 2022-12-03 at 16 38 21](https://user-images.githubusercontent.com/15076665/205430411-2e3463d0-792c-41cf-bdc9-efd41e37b9d9.png)
+
+Giải pháp ở đây đó chính là ta không chỉ fetch về các businesses thuộc về grid hiện thời mà còn fetch về từ những grid neighbors xung quanh.
+
+##### Không đủ businesses
+
+Một vấn đề khác có thể phát sinh ở đây đó là việc không có đủ businesses để fetch về dẫn tới không đáp ứng được đúng nhu cầu từ phía user.
+
+Có 2 giải pháp cho vấn đề nêu trên.
+
+- Giải pháp 1: chỉ trả về các businesses trong bán kính tìm kiếm của user, cách này dễ triển khai tuy nhiên vẫn có khả năng không đáp ứng được yêu cầu từ phía user.
+- Giải pháp 2: mở rộng bán kính tìm kiếm. Cách triển khai ở đây đó là bỏ bớt đi digit cuối cùng trong geohash để mở rộng phạm vi tìm kiếm, cứ thế cho đến khi số lượng business được trả về lớn hơn so với số lượng kì vọng thì thôi. Minh hoạ như hình bên dưới:
+
+![IMG_0900](https://user-images.githubusercontent.com/15076665/205430594-66a23024-b799-49ba-8872-90d9802ab323.jpg)
+
+#### Giải thuật 4: QuadTree
+
+Một giải pháp khác là sử dụng quadtree. Cách này sử dụng data structure là quadtree chuyên dùng để "làm phẳng" các dữ liệu 2 chiều. Tư tưởng như sau: ta chia không gian thành 4 phần (4 grids) một cách đệ quy, neo đệ quy ở đây đó là trong một grid thì số lượng businesses phải nhỏ hơn 100 (con số này có thể thay đổi tuỳ theo business requirement).
+
+Quadtree **KHÔNG PHẢI LÀ DATABASE SOLUTION** do nó hoạt động ở môi trường in-memory (chạy trong mỗi LBS server) & sẽ được build tại start-up time
+
+Ta giả sử cả thế giới có 200 triệu businesses.
+
+![Screen Shot 2022-12-03 at 16 55 53](https://user-images.githubusercontent.com/15076665/205430946-97de95b5-381d-4cbe-b955-fdcd76ef3d7a.png)
+
+Hình dưới đây sẽ mô tả cụ thể hơn quá trình build tree.
+
+![Screen Shot 2022-12-03 at 17 02 33](https://user-images.githubusercontent.com/15076665/205431159-8847be94-210d-4b62-9b43-3494adcc9ef5.png)
+
+```TS
+// pseudo code
+const buildQuadTree(TreeNode node) {
+  if (countNumberOfBusinessesInCurrentGrid(node) > 100) {
+    node.subdivide();
+    for (TreeNode child in node.getChilds()) {
+      buildQuadTree(child);
+    }
+  }  
+}
+```
+
+**Về lượng bộ nhớ sử dụng:**
+
+Dữ liệu lưu ở node lá:
+
+![IMG_0901](https://user-images.githubusercontent.com/15076665/205431909-1a7b0823-ab3c-4616-832a-2c9554f586c8.jpg)
+
+Dữ liệu lưu trong internal node:
+
+![IMG_0902](https://user-images.githubusercontent.com/15076665/205431917-ad1e81c2-b303-4e76-8104-8d4716e6e9bb.jpg)
+
+- 1 grid có thể lưu tối đa 100 businesses
+- Số lượng node lá: **200 triệu / 100 = 2 triệu**
+- Số lượng internal nodes: **2 triệu x 1/3 = 0.67 triệu**
+- Tổng lượng bộ nhớ cần sử dụng: **2 triệu x 832 bytes + 0.67 triệu x 64 bytes ~ 1.71GB**
+
+Memory requirement ở đây là khá nhỏ.
+
+> Điều đáng để nhấn mạnh ở đây không phải là những con số cụ thể về bộ nhớ mà là việc quadtree không tiêu tốn quá nhiều bộ nhớ và có thể được tải bở 1 server duy nhất
+
+Theo như trên không có nghĩa là ta chỉ cần 1 server duy nhất, ta vẫn cần nhiều servers để phục vụ lượng requests khổng lồ từ phía users.
+
+Thời gian cần để build tree **(n/100) x log (n/100)** (với n là số lượng businesses). Do đó chỉ tốn vài phút để build quadtree mà thôi.
+
+**Vậy làm thế nào để có thể tìm các businesses gần nhất bằng quadtree?**
+
+1. Build tree
+2. Duyệt cây bắt đầu từ root node cho đến khi xuống đến node lá thể hiện `search origin`. Nếu node có 100 businesses, ta trả về kết quả luôn. Nếu không ta sẽ trả về thêm từ các nodes bên cạnh.
+
+**Các operations khác nên được cân nhắc với quadtree:**
+
+Do quá trình build quadtree được tiến hành tại start-up time, do đó quá trình start-up server sẽ lâu hơn so với bình thường, dẫn đến việc re-deploy sẽ làm server bị offline trong một khoảng thời gian nhất định. Blue/ Green deployment có thể giải quyết vấn đề này, tuy nhiên với lượng dữ liệu đến từ 200 triệu businesses thì việc 1 server phải chịu toàn bộ tải cũng sẽ gây ra rủi ro tương đối cao.
+
+Một yếu tố khác cũng nên được nhắc tới ở đây đó là việc thêm mới, cập nhật, xoá business sẽ làm ảnh hưởng đến cây. Ta có thể tiến hành re-build lại từng tập con server cho đến hết, tuy nhiên làm điều này sẽ dẫn đến việc dữ liệu trả về cho users sẽ bị cũ. Vấn đề có thể được giải quyết bằng cách thoả thuận với phía businesses rằng thông tin sẽ được phản ánh lên hệ thống vào ngày hôm sau.
+
+#### Giải thuật 5: Google S2
+
+Map không gian xuống đường cong Hilbert để từ đó search trên không gian 1 chiều (dựa theo đường cong Hilbert), đây cũng là in-memory solution.
+
+S2 rất ổn khi triển khai geofencing (Geofence là một đường bao địa lý ảo bao quanh 1 khu vực trên thực tế)
+
+![GeoFence](https://user-images.githubusercontent.com/15076665/205433848-8e2e5440-be81-47e1-a2f7-393b274a7def.jpeg)
+
+Geofence cho phép chúng ta bao quát được những địa điểm yêu thích của user, hoặc gửi notification đến các user nằm ngoài khu vực đó.
+
+Một ưu điểm khác của S2 đó là việc nó cho phép chúng ta có thể chỉ định ra:
+
+- Max level
+- Min level
+- Max cell
+
+chứ không phải theo một quy định cho trước như geohash. Từ đó kết quả trả về từ phía S2 sẽ cụ thể và chi tiết hơn.
+
+**Lời khuyên:**
+
+Trong quá trình phỏng vấn ta nên lựa chọn **geohash** và **quadtree** do chúng đơn giản và dễ giải thích hơn so với S2
+
+#### Geohash vs quadtree
+
+**Geohash:**
+
+- Dễ triển khai.
+- Hỗ trợ việc trả về các businesses trong phạm vi bán kính cho trước.
+- Geohash length là cố định do đó khó có thể linh hoạt trong việc điều chính kích cỡ của grid
+- Update index dễ dàng, ví dụ khi ta muốn loại bỏ một business khỏi grid, ta chỉ việc loại bỏ record tương ứng trong DB là xong.
+
+![IMG_0904](https://user-images.githubusercontent.com/15076665/205434200-85be600d-2127-4735-8434-ed5b7c6c0dd3.jpg)
+
+#### Quadtree
+
+- Khó triển khai hơn so với geohash
+- Hỗ trợ tìm k businesses gần nhất. Việc này sẽ hỗ trợ rất nhiều cho user, ta lấy ví dụ với việc user bị hỏng xe giữa đường, chị ta cần tìm **chỗ sửa xe gần mình nhất** chứ không phải **chỗ sửa xe trong phạm vi bán kính R**. Quadtree có thể **tự điều chỉnh query range** để từ đó trả về **k business** cho ta.
+- Việc update business khá phiền phức khi phải duyệt cây từ root đến lá (chi phí này là `O(logn)`), hơn thế nữa việc triển khai là khá phức tạp với việc multi-thread đều truy cập đến cây (cần có cơ chế locking). Ngoài ra việc tái cân bằng lại cây cũng rất cần thiết nếu trường hợp node lá không có khả năng thêm business mới.
+
+## Bước 3: Deep Dive design
+
