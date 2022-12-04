@@ -444,3 +444,53 @@ const getNearbyBusinessIds = (geohash: string) => {
 ```
 
 Khi tiến hành thêm mới, cập nhật, xoá business thì các thao tác này cũng không tốn quá nhiều effort, đồng thời geohash cũng không cần phải sử dụng cơ chế locking nên các thao tác cập nhật cache để phản ánh đúng dữ liệu mới nhất có thể thực hiện một cách dễ dàng.
+
+Theo như yêu cầu thiết kế hệ thống thì người dùng có thể chọn các bán kính `500m`, `1km`, `2km`, `5km` tương ứng với các `geohash_legnth` lần lượt là `4`, `5`, `5` và `6`.
+
+Ta sẽ lần lượt cache search result trong Redis với các key `geohash_4`, `geohash_5`, `geohash_6`
+
+Như đã nói, ta có cả thảy 200 triệu businesses (mỗi business sẽ thuộc về 1 grid), vậy nên ta cần lượng bộ nhớ cụ thể như sau:
+
+- Redis values: **8 byte x 200 triệu x 3 precisions ~ 5GB**
+- Redis keys: không đáng kể
+- Tổng lượng bộ nhớ cần dùng ở đây là: **~ 5GB**
+
+Với lượng bộ nhớ như trên, ta chỉ cần 1 modern Redis server là đủ, tuy nhiên để đáp ứng lượng request lớn cũng như giảm đi độ trễ khi truy vấn, ta sẽ triển khai Redis cluster global. Các bản sao của cache data sẽ được deploy globally như hình dưới
+
+![Screen Shot 2022-12-04 at 13 02 30](https://user-images.githubusercontent.com/15076665/205473739-1d398a23-251d-4581-bd19-2dfb39fa1f6f.png)
+
+Các thông tin chi tiết về business sẽ lưu theo dạng
+
+```JSON
+{
+  // key: business_id, value: business detail infor
+  "business_id": {
+    "bussiness_name": "ABC",
+    "business_ranking": "4",
+    // ...
+  }
+}
+```
+
+#### Region và AZ
+
+Về bản chất chính là việc ta đưa LBS đến "gần user" hơn.
+
+- Triển khai trên nhiều region, ví dụ: user ở Mỹ sẽ kết nối tới LBS tại Mỹ, ở châu Âu là châu Âu, ...
+- Với các khu vực đông đúc ta có thể triển khai 1 region riêng hoặc multiple AZs để phân đều tải, tránh SPOF.
+- Để đáp ứng các privacy laws, ta có thể tạo một region riêng cho nơi đó với cơ chế đặc thù.
+
+#### Quá trình tìm các businesses gần nhất
+
+1. User tìm kiếm các nhà hàng trong bán kính 500m, client sẽ gửi thông tin về toạ độ (vĩ độ, kinh độ) cũng như bán kính tìm kiếm tới load balancer.
+2. Load balancer sẽ forward đến LBS.
+3. LBS sẽ dựa theo bán kính tìm kiếm của user để đưa ra `geohash_length` phù hợp nhất (ở đây là 6).
+4. LBS sẽ tính các neighboring geo hash và thêm vào danh sách các geohashes, kết quả sẽ như sau: `[my_geohash, neighbor1_geohash, neighbor2_geohash, ..., neighbor3_geohash]`.
+5. Tương ứng với từng geohash trong danh sách các geohashes trên, LBS sẽ lấy dữ liệu ra từ Redis cluster (bao gồm các business IDs), qúa trình lấy dữ liệu này có thể được triển khai song song để giảm đi độ trễ.
+6. Dựa theo business IDs lấy ra được, LBS sẽ fetch dữ liệu về business từ `Redis business data`, tính toán khoảng cách tới user, ranking, ... và trả về kết quả cho user.
+
+#### View, cập nhật, thêm mới hoặc xoá business
+
+Việc xem thông tin chi tiết về business sẽ dựa trên cơ chế cache. Cụ thể là nếu trong cache có thông tin về business, thông tin sẽ được trả về cho client luôn. Nếu không thì LBS sẽ fetch dữ liệu từ Database cluster, lưu nó xuống Redis cache rồi trả về cho client.
+
+Với việc cập nhật, thêm mới hoặc xoá business thì như đã thoả thuận với business, các thông tin mới sẽ được phản ánh vào ngày hôm sau. Do đó ta cần một `nightly job` để có thể đồng bộ hoá dữ liệu mới từ database sang Redis cache.
