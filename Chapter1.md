@@ -494,3 +494,5 @@ Về bản chất chính là việc ta đưa LBS đến "gần user" hơn.
 Việc xem thông tin chi tiết về business sẽ dựa trên cơ chế cache. Cụ thể là nếu trong cache có thông tin về business, thông tin sẽ được trả về cho client luôn. Nếu không thì LBS sẽ fetch dữ liệu từ Database cluster, lưu nó xuống Redis cache rồi trả về cho client.
 
 Với việc cập nhật, thêm mới hoặc xoá business thì như đã thoả thuận với business, các thông tin mới sẽ được phản ánh vào ngày hôm sau. Do đó ta cần một `nightly job` để có thể đồng bộ hoá dữ liệu mới từ database sang Redis cache.
+
+## Bước 4: Tổng kết
