@@ -39,3 +39,11 @@ Dưới đây là các giả định:
 ## Bước 2: High-level design
 
 ### High-level design
+
+Baì toán ở đây có thể trở thành việc user sẽ nhận các message update location từ những người bạn gần nhất. Có thể triển khai bằng peer-to-peer connection, để từ đó có thể tạo ra kết nối lâu dài và bền vững giữa các users
+
+[Screen Shot 2022-12-05 at 7 57 41](https://user-images.githubusercontent.com/15076665/205521215-b8587822-ca21-40b2-a5a6-d92f86d9c538.png)
+
+Các làm này thiếu đi tính thực tế do kết nối giữa các mobile devices thường dễ bị ngắt quãng. Tuy nhiên nó cũng mở ra một hướng đi mới như sau:
+
+[Screen Shot 2022-12-05 at 8 11 30](https://user-images.githubusercontent.com/15076665/205521357-961c239a-cfc2-4f2f-8926-594e4f774e9f.png)
