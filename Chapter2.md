@@ -111,3 +111,55 @@ Flow trên sẽ được lặp đi lặp lại cho mọi subcribers của channe
 
 ### API design
 
+#### Web Socket
+
+User sẽ gửi và nhận các thông tin liên quan đến location thông qua socket, do đó ta cần những APIs sau đây:
+
+**1. Periodic location update:**
+
+- Request: client gửi kinh độ, vĩ độ & timestamp
+- Response: không có gì
+
+**2. Client receive location update:**
+
+- Dữ liệu gửi đi: dữ liệu về location của bạn bè & timestamp
+
+**3. Websocket initialization:**
+
+- Request: Client gửi kinh độ, vĩ độ và timestamp
+- Response: Client nhận về dữ liệu liên quan đến location của bạn bè
+
+**4. Theo dõi bạn bè mới:**
+
+- Request: Websocket server gửi friend ID
+- Response: toạ độ của bạn bè & timestamp
+
+**5. Bỏ theo dõi bạn bè:**
+
+- Request: Websocket server gửi friend ID
+- Response: không có gì
+
+#### HTTP requests
+
+API server xử lí các chức năng đơn giản như:
+
+- Thêm/ xoá bạn bè
+- Cập nhật user profile
+- ...
+
+#### Data model
+
+##### Location cache
+
+Lưu thông tin liên quan đến vị trí mới nhất của các active user có bật tính tăng "near by friend". Thông tin về location sẽ được lưu trong Redis.
+Key/ value trong redis sẽ được lưu như sau:
+
+![Screen Shot 2022-12-26 at 17 57 42](https://user-images.githubusercontent.com/15076665/209528597-143aa8f1-aedc-4037-8316-a09bc6835f42.png)
+
+##### Lí do không sử dụng DB để lưu dữ liệu về vị trí
+
+Thông tin về vị trí chỉ đơn thuần là "một vị trí" cho từng user nên sẽ tiện hơn nếu lưu vào Redis do thao tác "Đọc" & "Ghi" với Redis thường rất nhanh, ngoài ra Redis hỗ trợ TTL cho phép chúng ta bỏ đi dữ liệu của các user không còn active nữa.
+
+Hơn thế nữa kể cả khi Redis bị "sập" thì ta có thể thay thế nó bằng một instance mới và "rỗng". Sau đó dữ liệu về location sẽ được "lấp đầy" bằng cách stream lại dữ liệu liên quan đến vị trí của người dùng. Việc redis bị "sập" như trên sẽ làm ảnh hưởng đến việc người dùng nhận được "location update" từ bạn bè do quá trình "cache warm", tuy nhiên điều này là chấp nhận được.
+
+##### Location history database
