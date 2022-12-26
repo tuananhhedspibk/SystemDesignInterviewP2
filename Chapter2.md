@@ -163,3 +163,51 @@ Thông tin về vị trí chỉ đơn thuần là "một vị trí" cho từng u
 Hơn thế nữa kể cả khi Redis bị "sập" thì ta có thể thay thế nó bằng một instance mới và "rỗng". Sau đó dữ liệu về location sẽ được "lấp đầy" bằng cách stream lại dữ liệu liên quan đến vị trí của người dùng. Việc redis bị "sập" như trên sẽ làm ảnh hưởng đến việc người dùng nhận được "location update" từ bạn bè do quá trình "cache warm", tuy nhiên điều này là chấp nhận được.
 
 ##### Location history database
+
+Lưu thông tin lịch sử về vị trí của người dùng, schema trông sẽ như sau:
+
+![Screen Shot 2022-12-26 at 21 42 21](https://user-images.githubusercontent.com/15076665/209550303-ecb6216a-5ce6-460f-8686-55971e9106fb.png)
+
+Ta cần một database có thể xử lí các tác vụ ghi nặng như thế này. Casandra là một ứng cử viên nặng kí, tuy nhiên ta cũng có thể sử dụng Relational Database. Tuy nhiên historical data sẽ không thể "được đựng vừa" vào trong một database duy nhất, do đó ta cần sharding (có thể sử dụng user_id để tiến hành sharding). Việc sharding sẽ đảm bảo tải sẽ được phân bổ đều tới mọi shards.
+
+## Bước 3: Design Deep Dive
+
+### API server có thể scale lên như thế nào ?
+
+Các API servers của ta ở đây đều là stateless nên việc auto-scale có thể dựa theo:
+
+- CPU load
+- CPU usage
+- I/O
+
+### Websocket server sẽ scale như thế nào ?
+
+Websocket server là stateful server do đó ta cần cẩn thận khi tiến hành auto-scale. Giả sử với việc loại bỏ đi một websocket server hiện có. Trước hết ta phải "đánh dấu" rằng mọi server đều có thể "bị gỡ bỏ". Khi một server đi đến trạng thái "đang được gỡ bỏ" thì mọi kết nối sẽ **KHÔNG ĐƯỢC ĐIỀU PHỐI** tới nó. Khi mọi kết nối tới server đó bị ngắt thì server đó sẽ bị loại bỏ.
+
+Việc release các Stateful server cũng đòi hỏi sự cẩn thận tương tự. Tuy nhiên các cloud load balancer đảm nhận rất tốt nhiệm vụ này.
+
+### Client initialization
+
+Khi mobile client khởi động, nó sẽ tạo một socket connection "vĩnh cửu" tới một websocket server instance. Các ngôn ngữ hiện đại cho phép khả năng maintain "nhiều" socket connection cùng lúc (với chi phí bộ nhớ nhỏ nhất).
+
+Khi websocket connection được khởi tạo xong, client sẽ gửi thông tin về location tới server, sau đó websocket server handler sẽ thực hiện các tasks sau:
+
+1. Cập nhật thông tin về vị trí của user trong cache.
+2. Lưu thông tin về vị trí trong một biến bên của connection handler cho mục đích tính toán sau đó.
+3. Load toàn bộ bạn bè của user từ DB.
+4. Tiến hành lấy về thông tin về vị trí của bạn bè từ cache bằng một lô (batch) các fetch request. Với những bạn bè ở trạng thái "inactive" hoặc do TTL của cache nên thông tin về vị trí đã không còn trong cache thì sẽ không được trả về.
+5. Sau khi lấy về thông tin liên quan đến vị trí của bạn bè, server sẽ tính toán khoảng cách từ người dùng đến vị trí đó, nếu nó nằm trong "bán kính tìm kiếm - search radius" thì thông tin về `user profile`, `update timestamp`, ... sẽ được trả về cho user thông qua websoket connection.
+6. Với mỗi bạn bè, server sẽ tiến hành subscribe các Redis pub/sub channel (kể cả inactive user - do việc tạo channel không tốn quá nhiều chi phí cũng như subsribe Redis pub/sub channel của inactive user cũng không tốn quá nhiều I/O và CPU)
+7. Gửi location của user cho Redis pub/sub channel của user.
+
+### User Database
+
+Chỉ có 2 bảng chính là:
+
+- User profile
+- Friendship
+
+Tuy nhiên với lượng dữ liệu thì một instance duy nhất là không đủ nên ta cần sharding dựa theo userID (cho mục đích horizontal scaling).
+Dữ liệu của `user database` sẽ được sử dụng bởi **Internal API**. Websocket server sẽ **THÔNG QUA** internal API để lấy dữ liệu thay vì truy vấn trực tiếp vào database. Tuy nhiên việc truy vấn trực tiếp hay gián tiếp qua API cũng không khác nhau nhiều về mặt hiệu năng.
+
+### Location cache
