@@ -210,4 +210,6 @@ Chỉ có 2 bảng chính là:
 Tuy nhiên với lượng dữ liệu thì một instance duy nhất là không đủ nên ta cần sharding dựa theo userID (cho mục đích horizontal scaling).
 Dữ liệu của `user database` sẽ được sử dụng bởi **Internal API**. Websocket server sẽ **THÔNG QUA** internal API để lấy dữ liệu thay vì truy vấn trực tiếp vào database. Tuy nhiên việc truy vấn trực tiếp hay gián tiếp qua API cũng không khác nhau nhiều về mặt hiệu năng.
 
-### Location cache
+### Location Cache
+
+Với việc sử dụng Redis cộng với việc thiết lập TTL cho từng key, ta cần cập nhật TTL mỗi khi location được cập nhật, dẫn đến việc tiêu thụ một lượng bộ nhớ khá lớn
