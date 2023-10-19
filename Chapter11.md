@@ -129,3 +129,45 @@ Chú ý rằng **payment_order_id** là global unique, khi payment executor gử
 Chú ý nữa đó là các đơn vị số như **amount** vẫn sẽ để là string vì tuỳ theo protocol, software mà giá trị double hoặc giá trị số có thể sẽ thay đổi.
 
 > Khi lưu trữ hoặc tương tác giữa các services ta nên dùng string, chỉ chuyển đổi sang number khi hiển thị hoặc tính toán
+
+#### GET /v1/payments/:id
+
+API này sẽ trả về execution status của một payment order dựa theo `payment_order_id`
+
+### Data model cho payment service
+
+Về cơ bản ta cần 2 bảng:
+
+- Payment Event
+- Payment Order
+
+Đối với payment system, performance không phải là yếu tố quan trọng nhất cần cân nhắc mà là:
+
+1. Tính ổn định: lựa chọn những storage được các hệ thống payment lớn tin dùng trong 1 khoảng thời gian dài (VD: 5 năm trở lên).
+2. Có nhiều tool hỗ trợ đi kèm: monitoring hoặc investigation.
+3. Có thể dễ dàng tuyển dụng được các DBA (database administrator).
+
+Thông thường ta sẽ sử dụng relation database truyền thống với ACID transaction thay vì NoSQL.
+
+**Payment Event** sẽ bao gồm các thông tin sau:
+
+- checkout_id: string **PK**
+- buyer_info: string
+- seller_info: string
+- credit_card_info: tuỳ theo card provider
+- is_payment_done: boolean
+
+**Payment Order** sẽ bao gồm các thông tin sau:
+
+- payment_order_id: string **PK**
+- buyer_account: string
+- amount: string
+- currency: string
+- checkout_id: string **FK**
+- payment_order_status: string
+- ledger_updated: boolean
+- wallet_updated: boolean
+
+Chúng ta sẽ cùng đi phân tích 2 bảng trên
+
+- **checkout_id** là khoá ngoại, một lần checkout sẽ tạo ra **1 payment event** có thể bao gồm **nhiều payment orders**
