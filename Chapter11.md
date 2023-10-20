@@ -171,3 +171,72 @@ Thông thường ta sẽ sử dụng relation database truyền thống với AC
 Chúng ta sẽ cùng đi phân tích 2 bảng trên
 
 - **checkout_id** là khoá ngoại, một lần checkout sẽ tạo ra **1 payment event** có thể bao gồm **nhiều payment orders**
+- Khi gọi third-party PSP để trừ tiền từ tài khoản của buyer, tiền sẽ không trực tiếp đi vào tài khoản của seller mà sẽ đi vào tài khoản của trang EC trước (quá trình này gọi là pay-in), sau khi điều kiện để chuyển tiền sang tài khoản của seller được thoả mãn mãn(ví dụ như việc hàng đã đến tay buyer) thì tiền sẽ chuyển từ tài khoản của EC sang seller (quá trình này gọi là pay-out). Do đó trong suốt quá trình diễn ra `pay-in` ta không nhất thiết phải quan tâm đến **seller account** mà chỉ cần quan tâm đến **buyer account** là đủ.
+
+Trong bảng payment-order ở trên, cột `payment_order_status` sẽ có kiểu dữ liệu là enum với các giá trị đã được định nghĩa trước gồm (NOT_STARTED, EXECUTING, SUCCESS, FAILED), logic update nó sẽ diễn ra như sau:
+
+1. Giá trị khởi tạo ban đầu của `payment_order_status` luôn là `NOT_STARTED`.
+2. Khi `payment-service` gửi `payment order` sang cho `payment-executor`, giá trị của `payment_order_status` sẽ là `EXECUTING`.
+3. `payment-service` sẽ cập nhật `payment_order_status` thành `SUCCESS` hoặc `FAILED` tuỳ thuộc vào kết quả trả về từ `payment-executor`.
+
+Khi `payment_order_status` được cập nhật thành `SUCCESS`, payment-service tiếp theo sẽ gọi đến `wallet-service` để cập nhật seller balance account, đồng thời cập nhật giá trị của `wallet_updated` thành `TRUE` (để đơn giản hoá ta giả sử rằng wallet-service luôn thành công).
+
+Sau khi quá trình gọi `wallet-service` kết thúc, `payment-service` sẽ gọi `ledger-service` để cập nhật ledger DB, sau đó sẽ cập nhật `ledger_updated` thành `TRUE`.
+
+Khi mọi payment-order với cùng một `checkout_id` được xử lí thành công, `payment-service` sẽ cập nhật `is_payment_done` của `payment-event` thành `TRUE`.
+
+Sẽ có một cron-job check trạng thái của payment-order định kì và sẽ gửi alert đến cho dev khi một payment-order mãi không kết thúc được.
+
+### Double-entry ledger system
+
+Có một khái niệm rất quan trọng trong thiết kế payment system đó là **double-entry principle** (còn được gọi là double-entry accounting/bookkeeping).
+
+Nó sẽ ghi nhận mọi transaction thành 2 records khác nhau tương ứng với 2 ledger accounts khác nhau với cùng một lượng tiền. Một account sẽ bị rút tiền, một account sẽ nhận được tiền. Ví dụ:
+
+| Account | Debit | Credit |
+| ------- | ----- | ------ |
+| buyer   | $1    |        |
+| seller  |       | $1     |
+
+Double-entry system sẽ đảm bảo rằng tổng của mọi transaction entries sẽ luôn là 0. Nếu bị lệch 1 đồng thì chứng tỏ một ai đó đã "lấy cắp được" 1 đồng đó.
+
+Việc này đảm bảo khả năng truy vết, tính thống nhất trong suốt vòng đời của payment.
+
+### Hosted payment page
+
+Hầu như mọi services đều lựa chọn việc không lưu trữ thông tin về credit card trong hệ thống của mình vì nếu muốn làm điều đó họ cần phải đảm bảo rất nhiều điều kiện ràng buộc với các cơ quan chức năng liên quan.
+
+Thay vào đó các services sẽ sử dụng `hosted credit card page` được cung cấp bởi PSPs.
+
+Với website đó có thể là: widget hoặc iframe.
+
+Với app thì đó có thể là SDK.
+
+Bản thân `hosted payment page` được PSPs cung cấp khả năng lấy được thông tin về thẻ của khách hàng một cách trực tiếp thay vì dựa vào payment-service của chúng ta.
+
+### Pay-out flow
+
+Flow của phần này cũng không khác nhiều so với pay-in flow ngoại trừ viêccj pay-out flow sẽ sử dụng third-party pay-out provider để chuyển tiền từ tài khoản của EC sang tài khoản của seller.
+
+Thông thường sẽ sử dụng các third-party account payable provider như Tipalti
+
+## Bước 3: Design Deep Dive
+
+Trong phần này chúng ta sẽ tập trung vào việc làm cho hệ thống:
+
+- Nhanh hơn.
+- Bảo mật hơn.
+- Đáng tin cậy hơn.
+
+Một vài key topics sau sẽ được xem xét kĩ:
+
+- PSP integration.
+- Reconciliation.
+- Xử lí payment processing delays.
+- Xử lí failed payment.
+- Tương tác giữa các internal services.
+- Exact-one delivery.
+- Tính thống nhất.
+- Bảo mật.
+
+### PSP integration
