@@ -380,3 +380,89 @@ Có thể tiếp cận vấn đề trên theo hai điều kiện như sau:
 
 1. Hành động được thực thi ít hơn 1 lần (sẽ được trình bày trong phần retry).
 2. Hành được chỉ được thực hiện nhiều nhất 1 lần cùng lúc (sẽ được trình bày trong phần idempotency check).
+
+### Retry
+
+Thông thường ta sẽ tiến hành retry khi gặp sự cố mạng hoặc timeout. Retry sẽ đảm bảo việc request được thực thi ít nhất một lần, như ở hình minh hoạ bên dưới, khi client cố gắng tạo 10$ payment nhưng đều bị failed do sự cố mạng và phải đến lần thư 4 thì mới thành công
+
+![Screen Shot 2023-10-21 at 22 08 27](https://github.com/tuananhhedspibk/micro-buying/assets/15076665/95a0b1c5-0a3a-4f4c-ba1d-9a0114a5ae1d)
+
+Khi tiến hành retry thì khoảng thời gian giữa các lần retries cũng rất quan trọng. Dưới đây là một vài "chiến lược" retry phổ biến:
+
+- Immediate retry: client sẽ retry ngay lập tức.
+- Fixed interval: client sẽ retry sau những khoảng thời gian "cố định" được thiết lập từ trước.
+- Incremental interval: những lần retry sau sẽ có quãng nghỉ lâu hơn lần retry trước.
+- Exponential backoff: retry interval time sẽ tăng theo số mũ. Ví dụ: 1s -> 2s -> 4s -> 8s -> ...
+- Cancel: client có thể cancel request, đây là một cách xử lí phổ biến khi payment failed liên tục và "có vẻ" không thể thành công.
+
+Trong thực tế không có một giải pháp nào là "hoàn hảo cả" (one size fits all). Khi tiến hành retry quá nhiều có thể sẽ làm tăng tải cho service. Good practive ở đây đó là cung cấp "errpr-code" đi kèm với **Retry-After** header.
+
+Một vấn đề tiềm tàng khác của retry đó là **double payment**. Cùng xem xét 2 kịch bản sau:
+
+- **Kịch bản 1**: payment service tích hợp với PSP sử dụng **hosted payment page**, user click vào nút pay hai lần.
+- **Kịch bản 2**: trong thực tế payment thành công, nhưng do sự cố mạng nên response từ PSP không tới được payment service nên user click nút pay lần thứ hai hoặc phía client retry lại payment.
+
+Để tránh tình trạng "double payment" này, payment chỉ được phép thực hiện **nhiều nhất một lần**. Vấn đề này sẽ do **Idempotency** đảm nhận.
+
+### Idempotency
+
+Từ góc nhìn của API, idempotency được hiểu là có thể tạo **nhiều requests** nhưng chỉ trả ra **một kết quả duy nhất** mà thôi.
+
+Khi tiến hành tương tác với server, client sẽ tạo ra một key (có expire time), key này thường sẽ là UUID, idempotent key sẽ được thêm vào HTTP header: `<idempotency-key: key_value>`.
+
+Sau đây chúng ta sẽ cùng tìm hiểu việc idempotent key giải quyết 2 kịch bản ở phần trên như thế nào.
+
+#### Kịch bản 1: Cần làm gì khi user click nút "pay" hai lần?
+
+Khi user click vào nút pay, idempotent key sẽ được gửi đến server (với trang EC thì có thể là cart ID trước khi checkout), request thứ 2 khi đến server sẽ được server nhìn nhận là retry do trước đó server đã thấy idempotent key này rồi nên server sẽ trả về trạng thái cuối cùng của request trước.
+
+![Screen Shot 2023-10-21 at 22 29 51](https://github.com/tuananhhedspibk/micro-buying/assets/15076665/de81ec49-ff83-4b26-9b31-8dda315d19c8)
+
+Nếu có nhiều request khác đến với cùng idempotent-key thì chỉ có request đầu được xử lí, các request sau sẽ được trả về **429 status code - Too Many Request**.
+
+Để thực hiện idempotent-key, ta có thể sủ dụng DB unique key constraint. VD: ID của DB sẽ được sử dụng như idempotent-key (ở đây ID là primary key).
+
+1. Khi payment system nhận payment, nó sẽ insert vào DB.
+2. Nếu insert thành công chứng tỏ payment request này là request đầu tiên.
+3. Nếu insert thất bại do **primary key đã tồn tại trước đó** thì chứng tỏ request này là request đến sau và sẽ không được xử lí.
+
+#### Kịch bản 2: Payment thành công nhưng response của PSP không đến được payment system do sự cố mạng, user nhấn nút "pay" lần thứ hai
+
+Như đã trình bày ở các phần trước, payment service sẽ gửi đến PSP một **nonce** và PSP sẽ trả về **token**. Cả **nonce** và **token** này đều tương ứng với một payment order duy nhất. Khi user nhấn "pay" lần thứ hai, payment order vẫn thế nên **token** vẫn thế và vì **token** được PSP sử dụng như một **idempontency key** nên PSP có khả năng nhận ra rằng đây là "double payment" và trả về trạng thái của lần thực thi trước.
+
+### Consistency
+
+Dữ liệu được lưu ở khá nhiều nơi khi quá trình payment diễn ra.
+
+1. Payment service lưu token, nonce, ...
+2. Ledger lưu accounting data.
+3. Wallet lưu account balance của merchant
+4. PSP lưu payment execution status
+5. Dữ liệu được replicated giữa các databases.
+
+Khi liên lạc giữa 2 services gặp sự cố sẽ dẫn đến tình trạng dữ liệu bị bất đồng bộ, do đó để đảm bảo sự đồng bộ về mặt dữ liệu giữa các services, ta cần đảm bảo **exactly-once processing**
+
+Ngoài ra ta có thể sử dụng idempotent key cũng như reconciliation (do không phải lúc nào external service cũng đúng)
+
+### Payment security
+
+Vấn đề bảo mật cũng cần phải được xem xét một cách nghiêm túc ở đây.
+
+Ta có thể sử dụng:
+
+- HTTPs để mã hoá request
+- SSL để tránh man-in-the-middle attack
+- Rate-limitting và firewall để tránh DDos.
+- Sử dụng token thay vì card number.
+
+## Bước 4: Tổng kết
+
+Ngoài việc thiết kế pay-in và pay-out flow. Ta cũng cần chú ý đến:
+
+- Monitoring: để biết CPU, memory sử dụng.
+- Alerting: dev có thể xử lí kịp thời các vấn đề của hệ thống.
+- Debug tool.
+- Đổi đơn vị tiền tệ.
+- Địa lí: mỗi khu vự sẽ có các payment methods khác nhau.
+- Cash payment
+- Google/ Apple pay integration.
