@@ -216,7 +216,7 @@ Bản thân `hosted payment page` được PSPs cung cấp khả năng lấy đ�
 
 ### Pay-out flow
 
-Flow của phần này cũng không khác nhiều so với pay-in flow ngoại trừ viêccj pay-out flow sẽ sử dụng third-party pay-out provider để chuyển tiền từ tài khoản của EC sang tài khoản của seller.
+Flow của phần này cũng không khác nhiều so với pay-in flow ngoại trừ việc pay-out flow sẽ sử dụng third-party pay-out provider để chuyển tiền từ tài khoản của EC sang tài khoản của seller.
 
 Thông thường sẽ sử dụng các third-party account payable provider như Tipalti
 
@@ -239,4 +239,144 @@ Một vài key topics sau sẽ được xem xét kĩ:
 - Tính thống nhất.
 - Bảo mật.
 
-### PSP integration
+### Tích hợp PSP
+
+Trong thực tế thì các payment-systems hiếm khi kết nối trực tiếp tới các ngân hàng hay các card-schemes như Visa hoặc Master-Card, mà thay vào đó sẽ đi theo hướng tích hợp các PSP vào hệ thống của mình theo một trong hai cách như sau:
+
+1. Nếu hệ thống có thể lưu trữ các thông tin nhạy cảm như số tài khoản hay mã số thẻ, ... thì PSP sẽ được tích hợp thông qua API. Hệ thống sẽ chỉ sử dụng PSP để kết nối tới ngân hnagf hoặc card-schemes và khi đó `payment web page` sẽ có nhiệm vụ đó là thu thập và lưu trữ các thông tin nhạy cảm về payment.
+
+2. Nếu hệ thống không muốn lưu trữ các thông tin nhạy cảm về payment thì sẽ chọn tích hợp PSP theo hướng sử dụng `hosted payment page` do PSP cung cấp để có thể thu thập các thông tin chi tiết về thẻ thanh toán (việc lưu trữ hoàn toàn do PSP đảm nhận). Đây là cách tiếp cận được nhiều hệ thống triển khai.
+
+![Screen Shot 2023-10-21 at 11 45 28](https://github.com/tuananhhedspibk/micro-buying/assets/15076665/719b7fce-dd70-470c-8d27-56f0b1acd345)
+
+Ở hình mô tả về quá trình hosted payment page làm việc ở phía trên, chúng ta sẽ bỏ qua sự hiện diện của `payment-executor` cũng như `ledger` và `wallet` nhằm mục đích đơn giản hoá.
+
+1. User click vào nút "checkout" trên trình duyệt, `payment-service` sẽ được gọi đi kèm với đó là thông tin về `payment-order`.
+2. Sau khi nhận được thông tin về `payment-order`, `payment-service` sẽ gửi `payment registration request` sang cho PSP. Request này bao gồm thông tin liên quan đến payment như: lượng tiền, đơn vị tiền, ngày hết hạn của payment request cũng như redirect URL. Do `payment-order` chỉ nên được đăng kí **duy nhất một lần** nên do đó mỗi `payment-order` sẽ có cho mình một trường UUID riêng để đảm bảo tính duy nhất này (UUID còn được gọi là **nonce**), UUID này được dùng luôn làm ID của `payment-order`
+3. PSP sẽ trả về 1 payment token, token này sẽ là UUID trên hệ thống của PSP nhằm định danh duy nhất payment registration. Chúng ta sau đó có thể kiểm tra `payment execution status` bằng token này.
+4. Payment service sẽ lưu payment token vào DB trước khi gọi đến PSP-hosted payment page.
+5. Khi token đã được lưu vào DB, sẽ tiến hành hiển thị PSP-hosted payment page với token, PSP-hosted payment page có khả năng thu thập toàn bộ các thông tin liên quan đến `payment card`, ... và gọi trực tiếp đến hệ thống của PSP, PSP-hosted payment page có thể thu thập các thông tin về card mà không cần phải tương tác với hệ thống của chúng ta. Thông thường PSP-hosted payment page cần 2 loại thông tin như sau:
+
+- Token ta nhận được ở bước 4, PSP code sẽ dùng token này để truy xuất các thông tin về `payment request` từ PSP backend - một thông tin quan trọng ở đây đó là **số tiền sẽ lấy đi**.
+- Một thông tin khác đó là **redirect URL**, đây chính là URL sẽ được gọi khi quá trình payment hoàn tất. Khi PSP code hoàn tất quá trình payment thì browser sẽ được chuyển hướng đến **redirect URL** này, thông thường thì **redirect URL** sẽ là URL của trang thông báo trạng thái thanh toán **thuộc về trang EC** (chú ý rằng redirect URL này **hoàn toàn khác** so với webhook ở bước 9).
+
+6. User sẽ nhập các thông tin payment vào PSP web page như credit card number, expiration date, ... và nhấn vào nút pay. PSP sau đó sẽ bắt đầu quá trình thanh toán (payment).
+7. PSP trả về payment status
+8. Web page lúc này sẽ redirect sang **redirect URL**, payment status nhận được ở bước 7 sẽ được appended vào URL. Ví dụ về full redirect URL: `https://test.com/?tokenId=IJSHDYUW1234&payResult=X324FSa`
+9. Một cách bất đồng bộ, PSP sẽ gọi tới `payment service` với thông tin về `payment status` thông qua webhook. `Webhook` này chính là **một URL của payment-service** được đăng kí với PSP ở bước khởi tạo ban đầu. Khi payment-service nhận được payment-events thông qua webhook, nó sẽ bóc tách thông tin về `payment-status` và cập nhật `payment_order_status` trong bảng `Payment Order`.
+
+### Reconciliation
+
+Đây là giải pháp nhằm giải quyết các vấn đề xảy ra trong một payment system khi nó gặp các sự cố như: sự có mạng hoặc có một trong 9 bước như đã trình bày ở phần trên bị failed.
+
+Trong các payment-system thì việc sử dụng asynchronous communication là một điều bình thường nhằm đảm bảo về mặt hiệu năng.
+
+Các external system cũng rất thích asynchronous communication, vậy nên làm cách nào để có thể đảm bảo tính chính xác cho trường hợp này?
+
+Về cơ bản thì **reconciliation** chính là việc "định kì" so sánh trạng thái giữa các services liên quan để từ đó có thể xác nhận rằng hệ thống có đang được vận hành trơn tru hay không. Đây thường là công cụ cuối cùng trong việc bảo vệ một payment system.
+
+Vào mỗi tối, PSP hoặc ngân hàng sẽ gửi cho các clients của họ settlement file, file này bao gồm thông tin về balance của bank account cũng như mọi giao dịch trong ngày của tài khoản đó. Reconciliation system sẽ parse settlement file và so sánh với ledger system.
+
+Hình dưới đây sẽ mô tả cách hoạt động của reconciliation process trong hệ thống.
+
+![Screen Shot 2023-10-21 at 15 53 28](https://github.com/tuananhhedspibk/micro-buying/assets/15076665/9d843d15-b983-4318-b75b-a958f096ba98)
+
+Reconciliation còn có vai trò xác nhận xem các thành phần trong payment system có thống nhất hay không.
+
+Để sửa những lỗi không nhất quán hoặc dữ liệu bị lệch như vậy ta phải chỉnh sửa dữ liệu bằng tay kết hợp với finance team.
+
+Những lỗi gặp phải và việc sửa chúng có thể chia thành 3 nhóm chính như sau:
+
+1. Lỗi có thể phân loại (đã rõ nguyên nhân gây ra lỗi) và việc sửa có thể được tự động hoá. Trong trường hợp này engineer có thể tự động hoá cả việc phân loại lẫn sửa lỗi.
+2. Lỗi có thể được phân loại (đã rõ nguyên nhân gây ra lỗi) nhưng ta lại không thể tự động hoá việc sửa được nguyên nhân là do chi phí để tự động hoá việc sửa lỗi là quá cao. Lúc này lỗi sẽ được đưa vào **job queue** và finance team sẽ sửa bằng tay.
+3. Lỗi không thể được phân loại (không rõ nguyên nhân gây ra lỗi), đây là trường hợp đặc biệt, cần được đưa vào job queue "đặc biệt", finance team sẽ phải bỏ ra effort để điều tra lỗi và sửa lỗi bằng tay.
+
+### Xử lí payment processing delays
+
+Một payment request được xử lí bởi rất nhiều services con và thường sẽ mất vài giây để hoàn thành, nhưng trên thực tế có những trường hợp độ trễ trong xử lí payment request có thể lên đến cả tiếng đồng hồ, dưới đây là một vài ví dụ:
+
+- PSP nhận thấy payment request có độ rủi ro cao và cần có yếu tố con người trong việc kiểm duyệt nó.
+- Credit card cần các phương thức bảo vệ khác như quét 3D bảo mật, nên nó yêu cầu nhiều thông tin chi tiết hơn từ phía card holder.
+
+Payment service cần có khả năng xử lí được các long-running request kiểu này, nếu buy page được host bởi PSP (thường được áp dụng hiện nay) thì PSP sẽ xử lí các long-running payment request theo những cách sau:
+
+- PSP sẽ trả về `pending status` tới client, client sẽ hiển thị trạng thái này cho user, client cũng có thể cung cấp một page để khách hàng kiểm tra trạng thái của payment hiện tại.
+- PSP sẽ theo dõi sự thay đổi trạng thái của payment, notify cho payment service thông qua webhook khi có bất kì sự thay đổi nào.
+
+Khi payment request được hoàn thành, PSP sẽ gọi tới webhook của payment-service, payment-service sẽ cập nhật internal state và hoàn tất việc gửi hàng cho khách hàng.
+
+Ngoài cách gọi webhook như trên, một vài PSP sẽ "bắt" payment-service phải "poll" PSP để cập nhật trạng thái của các pending payment requests.
+
+### Tương tác giữa các internal services
+
+Có 2 cách tương tác phổ biến đó là:
+
+- Synchronous
+- Asynchronous
+
+#### Synchronous
+
+Tiêu biểu là HTTP, cách làm này hoat động tốt với các hệ thống nhỏ, tuy nhiên khi hệ thống phình to nó sẽ bộc lộ những nhược điểm như sau:
+
+- Hiệu năng thấp: Nếu một trong số các services hoạt động không tốt sẽ làm ảnh hưởng đến toàn bộ hệ thống.
+- Dễ tổn thương bởi lỗi: nếu PSP hoặc các services khác failed, client sẽ không thể nhận được response.
+- Tăng tính phụ thuộc giữa các services khi phía gửi phải biết về phía nhận.
+- Khó để scale: nếu không sử dụng queue như buffer thì khó để hệ thống vận hành được khi traffic tăng đột biến.
+
+#### Asynchronous
+
+Bản thân cách tương tác này cũng được chia thành hai loại:
+
+1. **Single receiver**: Được triển khai với 1 **shared message (request) queue**, message (request) sẽ chỉ được xử lí bởi 1 subscriber hoặc 1 service duy nhất mà thôi, khi message được xử lí nó sẽ được loại bỏ ra khỏi queue như hình minh hoạ sau:
+
+![Screen Shot 2023-10-21 at 16 34 21](https://github.com/tuananhhedspibk/micro-buying/assets/15076665/48f9d079-c47c-4cb2-bdbb-962c43d03419)
+
+2. **Multiple receiver**: Ở đây một request (message) sẽ được xử lí bởi nhiều receivers hoặc services. Kafka sẽ hoạt động rất tốt trong trường hợp này. Cùng một message sẽ được nhận và xử lí bởi nhiều consumers, cách làm này phù hợp hơn trong thực tế cho dù thiết kế cho nó là khá phức tạp. Ta lấy một ví dụ khi một payment event được gửi đến các services khác như:
+
+- Push notification
+- Updating financial reporting
+- Analytics
+
+có thể minh hoạ như hình vẽ dưới đây:
+
+![Screen Shot 2023-10-21 at 16 54 03](https://github.com/tuananhhedspibk/micro-buying/assets/15076665/5c2f5774-e175-466c-af19-429cde145aff)
+
+`Multiple Receiver` có thể có thiết kế phức tạp hơn `Single Receiver` rất nhiều, xong nó lại phù hợp cho các hệ thống:
+
+- Có business logic phức tạp.
+- Quy mô lớn.
+- Sử dụng nhiều third-party dependencies.
+
+### Xử lí failed payments
+
+Mọi payment system đều cần phải có cơ chế xử lí lỗi. Tính chịu lỗi và tin cậy chính là chìa khoá ở đây. Dưới đây là một vài kĩ thuật để xử lí failed payment.
+
+#### Theo dõi payment state
+
+Cần định nghĩa rõ ràng vòng đời của một payment để khi có lỗi xảy ra ta có thể dựa theo trạng thái (state) hiện thời để từ đó đưa ra quyết định retry hoặc refund.
+
+Payment state có thể được lưu trữ trong **append-only database**
+
+#### Retry queue và dead letter queue
+
+Để xử lí lỗi, ta có thể triển khai retry queue và dead letter queue theo cách như hình dưới đây:
+
+![Screen Shot 2023-10-21 at 17 29 20](https://github.com/tuananhhedspibk/micro-buying/assets/15076665/3f656be4-36f4-415a-993e-c6d5615b9a17)
+
+Các lỗi không thể retry như ở bước (1b) phía trên thường sẽ được lưu vào DB (VD: invalid input, ...)
+
+Ở bước (3a) ta cần kiểm tra xem số lần retry đã vượt quá ngưỡng định nghĩa trước hay chưa ? Nếu chưa thì sẽ được đưa vào retry queue để retry tiếp, ngược lại sẽ được đưa vào Dead Letter Queue.
+
+- Retry queue: các lỗi có thể retry như các lỗi chỉ mang tính chất tạm thời (transient error)
+- Dead letter queue: nếu message bị failed nhiều lần, nó sẽ được đưa vào dead letter queue nhằm mục đích debug sau đó.
+
+### Exact-one delivery
+
+Một trong những vấn đề thường gặp ở payment-system đó là có thể có "double charge" đối với một người dùng.
+
+Chúng ta cần đảm bảo trong thiết kế rằng: ta chỉ charge user **duy nhất một lần** mà thôi.
+
+Có thể tiếp cận vấn đề trên theo hai điều kiện như sau:
+
+1. Hành động được thực thi ít hơn 1 lần (sẽ được trình bày trong phần retry).
+2. Hành được chỉ được thực hiện nhiều nhất 1 lần cùng lúc (sẽ được trình bày trong phần idempotency check).
