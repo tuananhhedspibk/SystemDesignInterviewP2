@@ -243,7 +243,7 @@ Một vài key topics sau sẽ được xem xét kĩ:
 
 Trong thực tế thì các payment-systems hiếm khi kết nối trực tiếp tới các ngân hàng hay các card-schemes như Visa hoặc Master-Card, mà thay vào đó sẽ đi theo hướng tích hợp các PSP vào hệ thống của mình theo một trong hai cách như sau:
 
-1. Nếu hệ thống có thể lưu trữ các thông tin nhạy cảm như số tài khoản hay mã số thẻ, ... thì PSP sẽ được tích hợp thông qua API. Hệ thống sẽ chỉ sử dụng PSP để kết nối tới ngân hnagf hoặc card-schemes và khi đó `payment web page` sẽ có nhiệm vụ đó là thu thập và lưu trữ các thông tin nhạy cảm về payment.
+1. Nếu hệ thống có thể lưu trữ các thông tin nhạy cảm như số tài khoản hay mã số thẻ, ... thì PSP sẽ được tích hợp thông qua API. Hệ thống sẽ chỉ sử dụng PSP để kết nối tới ngân hàng hoặc card-schemes và khi đó `payment web page` sẽ có nhiệm vụ đó là thu thập và lưu trữ các thông tin nhạy cảm về payment.
 
 2. Nếu hệ thống không muốn lưu trữ các thông tin nhạy cảm về payment thì sẽ chọn tích hợp PSP theo hướng sử dụng `hosted payment page` do PSP cung cấp để có thể thu thập các thông tin chi tiết về thẻ thanh toán (việc lưu trữ hoàn toàn do PSP đảm nhận). Đây là cách tiếp cận được nhiều hệ thống triển khai.
 
