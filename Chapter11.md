@@ -379,7 +379,7 @@ Chúng ta cần đảm bảo trong thiết kế rằng: ta chỉ charge user **d
 Có thể tiếp cận vấn đề trên theo hai điều kiện như sau:
 
 1. Hành động được thực thi ít hơn 1 lần (sẽ được trình bày trong phần retry).
-2. Hành được chỉ được thực hiện nhiều nhất 1 lần cùng lúc (sẽ được trình bày trong phần idempotency check).
+2. Hành động được chỉ được thực hiện nhiều nhất 1 lần cùng lúc (sẽ được trình bày trong phần idempotency check).
 
 ### Retry
 
