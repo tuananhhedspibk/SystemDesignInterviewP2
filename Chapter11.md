@@ -247,6 +247,8 @@ Trong thực tế thì các payment-systems hiếm khi kết nối trực tiếp
 
 2. Nếu hệ thống không muốn lưu trữ các thông tin nhạy cảm về payment thì sẽ chọn tích hợp PSP theo hướng sử dụng `hosted payment page` do PSP cung cấp để có thể thu thập các thông tin chi tiết về thẻ thanh toán (việc lưu trữ hoàn toàn do PSP đảm nhận). Đây là cách tiếp cận được nhiều hệ thống triển khai.
 
+![277080470-719b7fce-dd70-470c-8d27-56f0b1acd345](https://github.com/tuananhhedspibk/RoadToSeniorDev/assets/15076665/ff41c7a3-cccc-4106-99e5-ee39925f6533)
+
 Ở hình mô tả về quá trình hosted payment page làm việc ở phía trên, chúng ta sẽ bỏ qua sự hiện diện của `payment-executor` cũng như `ledger` và `wallet` nhằm mục đích đơn giản hoá.
 
 1. User click vào nút "checkout" trên trình duyệt, `payment-service` sẽ được gọi đi kèm với đó là thông tin về `payment-order`.
