@@ -31,7 +31,7 @@ Từ yêu cầu phía trên ta có thể liệt kê ra được những yêu c�
 - Khả năng chịu lỗi, xử lí các giao dịch "thất bại" một cách cẩn thận.
 - Đảm bảo sự đồng bộ, nhất quán giữa các **internal services (payment service, accounting service)** và **external services (payment service providers - PSP)**
 
-### Back-of-the-envelopre estimation
+### Back-of-the-envelope estimation
 
 1 ngày cần xử lí 1 triệu transaction (giao dịch), tức là khoảng
 
