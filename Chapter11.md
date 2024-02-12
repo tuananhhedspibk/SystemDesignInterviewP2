@@ -31,7 +31,7 @@ Từ yêu cầu phía trên ta có thể liệt kê ra được những yêu c�
 - Khả năng chịu lỗi, xử lí các giao dịch "thất bại" một cách cẩn thận.
 - Đảm bảo sự đồng bộ, nhất quán giữa các **internal services (payment service, accounting service)** và **external services (payment service providers - PSP)**
 
-### Back-of-the-envelopre estimation
+### Back-of-the-envelope estimation
 
 1 ngày cần xử lí 1 triệu transaction (giao dịch), tức là khoảng
 
@@ -243,11 +243,11 @@ Một vài key topics sau sẽ được xem xét kĩ:
 
 Trong thực tế thì các payment-systems hiếm khi kết nối trực tiếp tới các ngân hàng hay các card-schemes như Visa hoặc Master-Card, mà thay vào đó sẽ đi theo hướng tích hợp các PSP vào hệ thống của mình theo một trong hai cách như sau:
 
-1. Nếu hệ thống có thể lưu trữ các thông tin nhạy cảm như số tài khoản hay mã số thẻ, ... thì PSP sẽ được tích hợp thông qua API. Hệ thống sẽ chỉ sử dụng PSP để kết nối tới ngân hnagf hoặc card-schemes và khi đó `payment web page` sẽ có nhiệm vụ đó là thu thập và lưu trữ các thông tin nhạy cảm về payment.
+1. Nếu hệ thống có thể lưu trữ các thông tin nhạy cảm như số tài khoản hay mã số thẻ, ... thì PSP sẽ được tích hợp thông qua API. Hệ thống sẽ chỉ sử dụng PSP để kết nối tới ngân hàng hoặc card-schemes và khi đó `payment web page` sẽ có nhiệm vụ đó là thu thập và lưu trữ các thông tin nhạy cảm về payment.
 
 2. Nếu hệ thống không muốn lưu trữ các thông tin nhạy cảm về payment thì sẽ chọn tích hợp PSP theo hướng sử dụng `hosted payment page` do PSP cung cấp để có thể thu thập các thông tin chi tiết về thẻ thanh toán (việc lưu trữ hoàn toàn do PSP đảm nhận). Đây là cách tiếp cận được nhiều hệ thống triển khai.
 
-![Screen Shot 2023-10-21 at 11 45 28](https://github.com/tuananhhedspibk/micro-buying/assets/15076665/719b7fce-dd70-470c-8d27-56f0b1acd345)
+![277080470-719b7fce-dd70-470c-8d27-56f0b1acd345](https://github.com/tuananhhedspibk/RoadToSeniorDev/assets/15076665/ff41c7a3-cccc-4106-99e5-ee39925f6533)
 
 Ở hình mô tả về quá trình hosted payment page làm việc ở phía trên, chúng ta sẽ bỏ qua sự hiện diện của `payment-executor` cũng như `ledger` và `wallet` nhằm mục đích đơn giản hoá.
 
@@ -379,7 +379,7 @@ Chúng ta cần đảm bảo trong thiết kế rằng: ta chỉ charge user **d
 Có thể tiếp cận vấn đề trên theo hai điều kiện như sau:
 
 1. Hành động được thực thi ít hơn 1 lần (sẽ được trình bày trong phần retry).
-2. Hành được chỉ được thực hiện nhiều nhất 1 lần cùng lúc (sẽ được trình bày trong phần idempotency check).
+2. Hành động được chỉ được thực hiện nhiều nhất 1 lần cùng lúc (sẽ được trình bày trong phần idempotency check).
 
 ### Retry
 
