@@ -86,3 +86,33 @@ Thành phần cuối cùng ở đây đó là một service xử lí các transf
 Wallet service là **stateless** nên nó dễ dàng được **scale horizontally**.
 
 ![Screenshot 2024-02-13 at 8 01 35](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/c7dcb68e-4cc5-49e9-b4e1-d5337a5a46c6)
+
+Ở hình trên chúng ta có 3 redis nodes với 3 clients là A, B, C. Các account này sẽ nằm rải rác ở cả 3 redis nodes.
+
+Ta sẽ có 2 wallet service nodes xử lí các **account transfer command**. Khi có một transfer command (VD: chuyển $1 từ A sang B), sẽ có 2 commands phát sinh.
+
+- Command 1: lấy $1 từ A
+- Command 2: gửi $1 cho B
+
+2 commands này sẽ tác động lên 2 redis nodes khác nhau.
+
+Wallet service sẽ tìm ra node chứa account để cập nhật dữ liệu, nó sẽ lấy các thông tin này (ở đây gọi là **sharding information**) từ Zookeeper. Thế nhưng có những trường hợp "lưng chừng", đó là khi command thành công cập nhật account A nhưng sau đó thì wallet service bị crashed nên account B không được cập nhật, dẫn đến trình trạng `incomplete command`, để đảm bảo tình trạng này không xảy ra ta cần chắc chắn rằng **hai thao tác cập nhật đều thuộc về atomic transaction**.
+
+### Distributed transactions
+
+#### Database sharding
+
+Làm cách nào để cập nhật dữ liệu trên nhiều storage node một cách "atomic", câu trả lời đó ra gộp chung các redis nodes lại thành một RDB duy nhất sau đó sẽ phân vùng (partition) RDB node này ra thành các shared như hình dưới đây.
+
+![Screenshot 2024-02-13 at 22 37 52](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/f2f10baf-d0cb-4d2f-9121-b4b53dded085)
+
+Việc sử dụng RDB chỉ có thể giải quyết một phần của vấn đề khi ta không thể đảm bảo rằng các xử lí cập nhật dữ liệu sẽ được thực hiện tại cùng một thời điểm.
+
+Nếu wallet service restart sau khi cập nhật dữ liệu của account A, thì bằng cách nào chúng ta có thể đảm bảo được việc cập nhật dữ liệu của account B cũng sẽ được thực hiện ?
+
+#### Distributed transaction: Two-phase commit
+
+Trong một hệ thống phân tán, một transaction có thể thực hiện nhiều xử lí trên nhiều nodes khác nhau. Có 2 cách để triển khai distributed transaction:
+
+- Low-level solution
+- High-level solution
