@@ -116,3 +116,21 @@ Trong một hệ thống phân tán, một transaction có thể thực hiện n
 
 - Low-level solution
 - High-level solution
+
+Low-level solution thường sẽ dựa trên bản thân DB, giải thuật thường được sử dụng ở đây đó là `two-phase commit (2PC)`.
+
+![Screenshot 2024-02-19 at 8 00 21](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/c9af8e5b-db41-4aa7-8eb0-47ba009b716a)
+
+1. Coordinator (ở đây là wallet service) tiến hành đọc và ghi cùng lúc trên nhiều DB, như hình trên DB A và C đều được lock lại.
+2. Khi app chuẩn bị commit transaction, coordinator sẽ yêu cầu các DB về việc "chuẩn bị" transaction.
+3. Ở phase thứ 2, coordinator sẽ thu thập câu trả lời từ các db và thực hiện
+   a. Nếu mọi DB trả lời `yes`, coordinator sẽ yêu cầu DB commit các transactions.
+   b. Nếu có DB trả lời `no`, coordinator sẽ yêu cầu DB abort transaction đó.
+
+Vấn đề lớn nhất với 2PC đó chính là "hiệu năng", khi lock sẽ được giữ trong một khoảng thời gian dài khi chờ message từ các nodes khác.
+
+Một vấn đề khác nữa với 2PC đó là coordinator có thể là SPOF, được minh hoạ như hình bên dưới
+
+![Screenshot 2024-02-19 at 8 09 36](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/5dc91341-af0d-4fdf-81a9-482391be4edf)
+
+#### Distributed transaction: Try-Confirm/ Cancel (TC/C)
