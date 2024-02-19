@@ -134,3 +134,31 @@ Một vấn đề khác nữa với 2PC đó là coordinator có thể là SPOF,
 ![Screenshot 2024-02-19 at 8 09 36](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/5dc91341-af0d-4fdf-81a9-482391be4edf)
 
 #### Distributed transaction: Try-Confirm/ Cancel (TC/C)
+
+TC/C có 2 bước:
+
+1. Ở pha đầu tiên, coordinator sẽ yêu cầu tất cả các DB chuẩn bị resources cho transaction.
+2. Ở pha thứ hai, coordinator sẽ lấy về toàn bộ replies từ các DB
+   a. Nếu mọi DB đều reply `yes`, coordinator sẽ yêu cầu các DB xác nhận thao tác (Try-Confirm process).
+   b. Nếu có bất kì DB nào reply `no`, coordinator sẽ yêu cầu tất cả các DB cancel thao tác (Try-Cancel process).
+
+Chú ý rằng các pha trong 2PC sẽ được bao ngoài bởi cùng 1 transaction nhưng mỗi pha trong TC/C sẽ là một transaction riêng.
+
+**Ví dụ về TC/C**
+
+Một ví dụ về TC/C trong thực tế về việc chuyển khoản từ account A sang account C.
+
+Pha 1: `Try` - Account A (Balance -$1), Account C (Do nothing)
+Pha 2:
+
+- `Confirm` - Account A (Do nothing), Account C (Balance +$1)
+- `Cancel` - Account A (Balance +$1), Account C (Do nothing)
+
+**Pha 1**: trong pha này, wallet service sẽ đóng vai trò như một coordinator, nó sẽ gửi 2 transaction commands đến 2 DB
+
+1. Với DB lưu account A, coordinator sẽ bắt đầu một local transaction giảm đi $1
+2. Với DB lưu account C, coordinator sẽ gửi một NOP (no operation) command đến DB, DB sẽ không làm gì với `NOP command` này cả và luôn reply success message.
+
+![Screenshot 2024-02-20 at 8 39 25](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/c9dee549-5a86-480f-bda5-00f8cbfa6b90)
+
+**Pha 2**:
