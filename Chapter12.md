@@ -161,4 +161,45 @@ Pha 2:
 
 ![Screenshot 2024-02-20 at 8 39 25](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/c9dee549-5a86-480f-bda5-00f8cbfa6b90)
 
-**Pha 2**:
+**Pha 2 - Confirm**: nếu cả 2 databases đều reply `yes`, wallet service sẽ bắt đầu pha Confirm
+
+Ở pha đầu tiên, account A đã bị -$1, nhưng account C vẫn chưa thay đổi, ở pha confirm, account C sẽ được +$1
+
+![Screenshot 2024-02-20 at 23 22 08](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/ca95b538-478f-49dc-9edf-5c969e58f341)
+
+**Pha 2 - Cancel**: trong thực tế, `NOP` operation có thể fail, có thể do account C đã quá cũ nên tiền không được phép "chảy vào" cũng như "chảy ra" khỏi nó. Trong trường hợp này `distributed transaction` sẽ phải canceled.
+
+Do sau pha đầu tiên, account A đã được cập nhật (transaction của pha 1 đã hoàn tất) nên ta không thể cancel được. Ta chỉ có thể tạo một transaction mới với nhiệm vụ "hoàn lại tiền" cho account A.
+
+Do account C không thay đổi gì cả nên wallet service chỉ cần gửi `NOP` operation đến cho account C database.
+
+![Screenshot 2024-02-20 at 23 27 40](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/0af1ad87-cb93-4b56-a7aa-22551e087e3d)
+
+#### So sánh 2PC và TC/C
+
+Trong 2PC mọi local transactions vẫn ở trạng thái lock (chưa hoàn tất) khi pha thứ 2 bắt đầu.
+
+Trong TC/C mọi local transaction đều được hoàn tất (unlocked) khi pha thứ 2 bắt đầu.
+
+Trong trường hợp **pha thứ 2 thành công**:
+
+- 2PC: commit mọi local transactions
+- TC/C: thực thi local transaction mới nếu cần.
+
+Trong trường hợp **pha thứ 2 fail**:
+
+- 2PC: cancel mọi local transactions.
+- TC/C: reverse lại mọi local transactions đã kết thúc trước đó (dưới hình thức một transaction mới).
+
+TC/C là một **high-level solution**, nó được triển khai ở business logic.
+
+Một nhược điểm của TC/C đó là ở tầng `business logic` cũng như `application layer` ta cần các xử lí phức tạp của `distributed transaction`.
+
+### Phase status table
+
+Vẫn còn một câu hỏi mà chúng ta vẫn chưa trả lời được đó là "Điều gì sẽ xảy ra nếu wallet service restart giữa chừng TC/C ?", khi nó restart, mọi thao tác trước đó sẽ bị mất và hệ thống sẽ không có cách nào để recover cả.
+
+Giải pháp ở đây đó là "lưu trữ progress của TC/C như phase status trong transactional database", phase status sẽ bao gồm các thông tin sau:
+
+- ID, nội dung của distributed transaction.
+- Status của try phase trên mỗi DB (not sent yet, has been sent, response received).
