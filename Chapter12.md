@@ -202,4 +202,13 @@ Vẫn còn một câu hỏi mà chúng ta vẫn chưa trả lời được đó 
 Giải pháp ở đây đó là "lưu trữ progress của TC/C như phase status trong transactional database", phase status sẽ bao gồm các thông tin sau:
 
 - ID, nội dung của distributed transaction.
-- Status của try phase trên mỗi DB (not sent yet, has been sent, response received).
+- Status của try phase trên mỗi DB (`not sent yet`, `has been sent`, `response received`).
+- Tên của phase thứ 2 (`Confirm` hoặc `Cancel`).
+- Status của phase thứ 2.
+- Out-of-order flag
+
+Chúng ta nên lưu `phase-status-table` trong DB chứa account mà tiền đi ra khỏi đó.
+
+![Screenshot 2024-02-21 at 7 34 43](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/ad3cdeb6-cf1d-457b-9605-43c21c09b8db)
+
+### Unbalanced state
