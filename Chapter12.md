@@ -212,3 +212,64 @@ Chúng ta nên lưu `phase-status-table` trong DB chứa account mà tiền đi 
 ![Screenshot 2024-02-21 at 7 34 43](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/ad3cdeb6-cf1d-457b-9605-43c21c09b8db)
 
 ### Unbalanced state
+
+![Screenshot 2024-02-23 at 17 04 19](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/ff33a457-f980-4940-b824-7b91c1d6802b)
+
+Quan sát hình ở phía trên, chúng ta sẽ thấy rằng sau phase thứ nhất thì tổng tiền ở account A và C là `$0` do account A - $1 nhưng account C chưa nhận được tiền, điều này vi phạm quy tắc cơ bản của `accounting` đó là `tổng phải giống nhau trước và sau một transaction`
+
+Nhưng một tin tốt đó là các yếu cầu cơ bản của transaction vẫn được đảm bảo bởi TC/C, TC/C đảm bảo các yếu tố của local transaction. Do TC/C được vận hành ở application layer, bản thân application layer có thể thấy được các kết quả trung gian giữa các local transaction.
+
+### Valid operation orders
+
+Có 3 sự lựa chọn cho `Try phase`
+
+1. account A: -$1, account C: NOP
+2. account A: NOP, account C: +$1
+3. account A: -$1, account C: +$1
+
+Với sự lựa chọn thứ 2, giả sử try phase thành công với account C nhưng lại failed với account A, việc ta cần làm là thực thi Cancel phase, thế nhưng nếu một ai đó lại lấy đi $1 từ account C thì account C lúc này không còn lại gì cả, do đó hệ thống lúc này đã vi phạm quy tắc của distributed transaction.
+
+Với sự lựa chọn thứ 3, khi này ta tiến hành thực hiện việc lấy $1 từ A và thêm $1 sang C một cách đồng thời. Nếu việc thêm $1 vào C thành công nhưng việc lấy $1 từ A lại thất bại thì cách xử lí ở đây là gì ?
+
+Do đó sự lựa chọn đầu tiên là "an toàn" hơn cả.
+
+### Out-of-order execution
+
+Một side-effect của TC/C đó là `out-of-order execution`.
+
+Xét ví dụ sau:
+![Screenshot 2024-02-23 at 17 27 53](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/cafa0e74-6b84-47ee-8be6-36ea74745c51)
+
+Sử dụng lại ví dụ về chuyển $1 từ account A sang account C, như hình ở trên, khi Try phase được thực thi, nhưng do sự cố nên thao tác lấy tiền từ A bị fail, Try phase kết thúc và chuyển qua Cancel phase. Ở Cancel phase, cancel operation được gửi cho cả account A và account C.
+
+Giả sử rằng database xử lí account C gặp sự cố mạng và nhạn được cancel instruction trước try instruction nên do đó không có gì được cancel.
+
+Để xử lí out-of-order operation, mỗi node được cho phép cancel TC/C mà không cần nhận Try instruction nào, xử lí cụ thể như sau:
+
+- Out-of-order Cancel operation sẽ để lại một flag trong DB, chỉ ra rằng **nó đã thấy Cancel operation và chưa thấy bất kì try operation nào**.
+- Try operation sẽ liên tục kiểm tra xem có `out-of-order flag` nào không, nếu có nó sẽ trả về failed.
+
+### Distributed transaction: SAGA
+
+#### Linear order execution
+
+SAGA là một chuẩn để thực thi distributed transaction trong microservice architecture. Ý tưởng của Saga rất đơn giản:
+
+1. Tất cả các thao tác đều được thực hiện một cách tuần tự, mỗi một thao tác sẽ là một transaction độc lập trên DB của nó.
+2. Các thao tác được thực thi từ đầu đến cuối, hết thao tác này đến thao tác khác.
+3. Khi một thao tác failed, ta cần rollback từ thao tác hiện tại cho đến thao tác đầu tiên theo thứ tự ngược lại, sử dụng phương thức "đền bù transaction - compensating transaction", giả sử ta có n thao tác, ta cần chuẩn bị tất cả **2n transaction** - n transaction cho n thao tác và n transaction còn lại cho quá trình rollback.
+
+Mô tả bằng sơ đồ như sau:
+
+![Screenshot 2024-02-23 at 18 23 59](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/6fb5ef51-d611-42e9-afa3-f12662d61a39)
+
+2 trục dọc sẽ là các tình huống lỗi xảy ra. Như đã đề cập trong phần "Valid operation orders", ta luôn thực hiện thao tác trừ tiền trước thao tác cộng tiền.
+
+Có 2 cách để tiến hành "cộng tác" giữa các microservice
+
+1. Choreography: các distributed transaction sẽ subscribe các events của các các services khác.
+2. Orchestration: một coordinator sẽ "chỉ đạo" các services khác làm việc theo một thứ tự thích hợp.
+
+Choreography sẽ được thực thi full async nên sẽ khó kiểm soát các internal state machine khi có nhiều service.
+
+Orchestration có khả năng xử lí phức tạo tốt, do đó đây là giải pháp thường dùng trong digital wallet system.
