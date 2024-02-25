@@ -273,3 +273,34 @@ Có 2 cách để tiến hành "cộng tác" giữa các microservice
 Choreography sẽ được thực thi full async nên sẽ khó kiểm soát các internal state machine khi có nhiều service.
 
 Orchestration có khả năng xử lí phức tạo tốt, do đó đây là giải pháp thường dùng trong digital wallet system.
+
+### So sánh TC/C và Saga
+
+Cả TC/C và Saga đều là distributed transactions ở application-level.
+
+Thế nhưng mỗi loại sẽ có những đặc điểm riêng như sau:
+
+Với Saga:
+
+- Luôn thực thi theo thứ tự tuần tự (không thể thực thi song song).
+- Có thể thấy được trạng thái "lưng chừng" của transaction.
+- Với Orchestration Mode sẽ có `Central coordination`.
+
+Với TC/C:
+
+- Có thể thực thi theo bất kì thứ tự nào.
+- Có khả năng thực thi song song
+- Có thể thấy được trạng thái "lưng chừng" của transaction.
+- Có `Central coordination`.
+
+Tuỳ vào yêu cầu về độ trễ - latency requirement ta có thể đưa ra sự lựa chọn phù hợp.
+
+Với hệ thống nhỏ ta có thể sử dụng hoặc là TC/C hoặc là Saga. Nhưng nếu muốn đi theo mô hình micro-service thì nên lựa chọn Saga
+
+Thế nhưng với những hệ thống yêu cầu cao về độ trễ thì TC/C sẽ là một sự lựa chọn tốt hơn.
+
+Tuy nhiên ta cũng cần lưu ý rằng do TC/C và Saga được implement ở application-layer nên nó sẽ bị ảnh hưởng bởi thao tác "nhập liệu lỗi" từ phía user nên ta cần một cơ chế để có thể truy vết về nguyên nhân gốc rễ của vấn đề. `Event sourcing` sẽ giúp chúng ta có thể giải quyết bài toán nêu trên.
+
+### Event Sourcing
+
+#### Background
