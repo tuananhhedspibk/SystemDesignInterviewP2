@@ -304,3 +304,31 @@ Tuy nhiên ta cũng cần lưu ý rằng do TC/C và Saga được implement ở
 ### Event Sourcing
 
 #### Background
+
+Trong thực tế, các digital wallet provider đều bị tiến hành kiểm toán, các kiểm toán viên sẽ thường xuyên hỏi các câu hỏi như:
+
+1. Liệu chúng ta có thể kiểm tra được số dư tài khoản ở bất kì thời điểm nào ?
+2. Làm cách nào chúng ta có thể biết được lịch sử và số dư tài khoản hiện thời là chính xác ?
+3. Làm cách nào chúng ta có thể chứng minh được system logic là đúng kể cả sau khi code đã thay đổi ?
+
+#### Các khái niệm
+
+Có 4 khái niệm quan trọng trong event-sourcing
+
+1. Command
+2. Event
+3. State
+4. State Machine
+
+#### Command
+
+Là một inteded action từ bên ngoài, ví dụ: khi ta muốn chuyển $1 từ account A sang C, thì **request chuyển tiền** chính là một command.
+
+Trong event sourcing, mọi thứ đều có tính thứ tự, command sẽ được đưa vào một FIFO queue
+
+#### Event
+
+Command có thể invalid hoặc không được hoàn tất. Ví dụ, transfer command có thể failed và account balance sẽ có giá trị âm sau khi transfer.
+
+Command phải valid trước khi ta làm bất kì điều gì với nó. Khi command pass validation thì nó phải được thực thi và phải kết thúc
+, kết quả của việc kết thúc một command được gọi là event.
