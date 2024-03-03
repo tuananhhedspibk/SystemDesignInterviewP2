@@ -332,3 +332,85 @@ Command có thể invalid hoặc không được hoàn tất. Ví dụ, transfer
 
 Command phải valid trước khi ta làm bất kì điều gì với nó. Khi command pass validation thì nó phải được thực thi và phải kết thúc
 , kết quả của việc kết thúc một command được gọi là event.
+
+Có 2 sự khác biệt lớn giữa command và event:
+
+1. Event phải được thực thi vì chúng biểu thị một "validated fact", trong thực tế chúng ta thường dùng "thì quá khứ" cho event. Ví dụ nếu command là "transfer $1 từ A sang C" thì event tương ứng sẽ là "transferred $1 từ A sang C".
+
+2. Command có thể bao hàm các yếu tố ngẫu nhiên hoặc I/O nhưng event **phải mang tính quyết định**, events sẽ biểu thị các **historical facts**.
+
+Có hai yếu tố quan trọng của qúa trình generate event.
+
+1. Một command có thể gen ra số lượng events tuỳ ý.
+2. Event generation có thể bao gồm I/O hoặc số ngẫu nhiên nên một command sẽ gen ra các events khác nhau.
+
+Thứ tự các events phải theo đúng như thứ tự của commands, events được lưu trong FIFO queue.
+
+#### State
+
+State sẽ thay đổi khi apply event. Trong wallet system, state là balances của tất cả các client accounts (có thể được biểu thị bới map data structure - key là account ID hoặc account Name, còn value chính là account balance). Key-value store thường được sử dụng để lưu map.
+
+#### State machine
+
+State machine sẽ điều phối event sourcing process, nó bao gồm 2 tính năng chính:
+
+1. Validate commands và generate events.
+2. Apply event để cập nhật state.
+
+Event sourcing yêu cầu behavior của state machine cần phải "nhất quán". Do đó state machine sẽ không nhận bất kì randomness nào từ I/O. Khi apply event để cập nhật state, nó nên luôn luôn tạo ra kết quả giống nhau.
+
+State machine có 2 nhiệm vụ chính như trên nên trong hình minh hoạ bên dưới ta sẽ thấy có 2 State machine bên trong nó.
+
+![Screenshot 2024-03-03 at 21 47 34](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/bdddd85b-dbbd-42c8-8d62-40a46972e03b)
+
+Nếu ta thêm time-dimension, ta sẽ được hình như bên dưới (hệ thống sẽ nhận và xử lí từng command một).
+
+![Screenshot 2024-03-03 at 21 53 29](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/2d2d6d9e-0c8c-4be5-b486-06bab737c9f3)
+
+#### Wallet service example
+
+Với wallet service, command sẽ là balance transfer requests. Các commands sẽ được đưa vào FIFO queue (một lựa chọn phổ biến cho command queue là Kafka). Hình minh hoạ dưới đây
+
+![Screenshot 2024-03-03 at 22 00 38](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/3ddddce1-876d-477b-9adb-30544e1eb4b9)
+
+Giả sử state (account balance) được lưu trong RDB, state machine sẽ kiểm tra các commands (one by one) theo thứ tự FIFO, với mỗi command, nó sẽ kiểm tra xem balance của account có thoả mãn điều kiện hay không, nếu có nó sẽ gen ra các events tương ứng, ví dụ với command "A -$1-> C", state machine sẽ gen ra 2 events là "A: -$1" và "C: +$1"
+
+Hình dưới đây sẽ mô tả quá trình state machine làm việc trong 5 bước:
+
+![Screenshot 2024-03-03 at 22 47 44](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/44db28eb-7fe2-452d-897f-375d74b0df73)
+
+1. Đọc command từ command queue.
+2. Đọc balance state từ DB.
+3. Validate command để từ đó gen ra các events.
+4. Đọc các events.
+5. Apply events bằng cách update balance trong DB.
+
+#### Reproducibility (Khả năng tái tạo)
+
+Một trong số những ưu điểm của event sourcing so với các kiến trúc khác đó là khả năng tái tạo.
+
+Trong distributed transaction solution, ta sẽ lưu updated value của balance thế nhưng với event sourcing ta sẽ lưu lại "lịch sử" các sự thay đổi này (lịch sử này sẽ KHÔNG BỊ THAY ĐỔI).
+
+Từ "lịch sử" này, ta có thể tái tạo lại balance state.
+
+Hình dưới đây sẽ mô tả cách sử dụng event để tái tạo lại state tại một thời điểm nhất định.
+
+![Screenshot 2024-03-03 at 22 56 18](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/5f195c4a-da58-4923-b4b5-10bc5f16ef4e)
+
+Khả năng tái tạo này giúp chúng ta có thể "đối phó" lại với những câu hỏi dưới đây của kiểm toán:
+
+1. Liệu chúng ta có thể biết được account balance tại bất kì thời điểm nào ?
+
+2. Làm cách nào để có thể biết được lịch sử và balance của account hiện tại có đúng hay không ?
+
+3. Làm cách nào chúng ta có thể chứng minh được system logic vẫn đúng ngay cả khi code thay đổi ?
+
+Với câu hỏi đầu tiên chúng ta chỉ cần "kết tập - aggregate" các events lại cho tới một thời điểm nhất định.
+
+Với câu hỏi thứ hai chúng ta có thể tính lại account balance bằng các event từ thời điểm ban đầu cho đến mới nhất.
+
+Với câu hỏi thứ ba chúng ta có thể chạy các versions khác nhau của code với các events và check lại các kết quả là khác nhau.
+
+Do đáp ứng được các yêu cầu về sự "minh bạch" nên event sourcing thường được dùng trong các wallet service.
+
+#### CQRS
