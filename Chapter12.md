@@ -414,3 +414,18 @@ Với câu hỏi thứ ba chúng ta có thể chạy các versions khác nhau c�
 Do đáp ứng được các yêu cầu về sự "minh bạch" nên event sourcing thường được dùng trong các wallet service.
 
 #### CQRS
+
+Chúng ta đã thiết kế được một wallet service chuyển tiền giữa các account nhưng client không hề biết gì về state (balance information), ta cần có một cách để publish thông tin về state tới client.
+
+Thông thường ta có thể tạo một read-only copy cho DB và publish state. Thế nhưng event sourcing sẽ publish events mà thôi. Client có thể re-build và customize tuỳ ý. Thiết kế này được gọi là CQRS.CQRS
+
+Trong CQRS chỉ có **một state machine** đảm nhận nhiệm vụ write, trong khi đó sẽ có **nhiều state machines** - với nhiệm vụ xây dựng views cho states, các views này sẽ được sử dụng cho mục đích queries.
+
+Các read-only state machines có thể đem lại nhiều hình thức "biểu thị" cho event queue, ví dụ:
+
+- State machine có thể lưu balance vào DB để client truy xuất.
+- State machine có thể build lại state tại một khoảng thời gian nhất định để giải quyết các vấn đề như double-charges.
+
+![Screenshot 2024-03-04 at 8 05 38](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/3efe72ff-cea3-403b-9a7a-0eb0f468e181)
+
+## Bước 3: Deep Dive Design
