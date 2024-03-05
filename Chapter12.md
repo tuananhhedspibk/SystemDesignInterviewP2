@@ -429,3 +429,30 @@ Các read-only state machines có thể đem lại nhiều hình thức "biểu 
 ![Screenshot 2024-03-04 at 8 05 38](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/3efe72ff-cea3-403b-9a7a-0eb0f468e181)
 
 ## Bước 3: Deep Dive Design
+
+Trong phần này chúng ta sẽ chú trọng về:
+
+- High performance
+- Reliability
+- Scalability
+
+### High performance event sourcing
+
+Trong các ví dụ trước chúng ta sử dụng:
+
+- Kafa để lưu command và event.
+- Database để lưu state.
+
+#### File-based command và event list
+
+Thay vì sử dụng Kafka, ta sẽ append command và event list vào file trên ổ đĩa (các thao tác này nhanh do đã được OS tối ưu hoá) cũng như không mất thời gian cho việc truyền dữ liệu qua mạng đến remote Kafka.
+
+Một biện pháp tối ưu thứ hai đó là cache các commands và events trong bộ nhớ. Như đã giải thích lúc trước, chúng ta sẽ xử lí commands và events ngay lập tức sau khi chúng được tạo ra, do đó việc cache trong bộ nhớ sẽ giúp giảm thời gian lấy command và event ra từ local disk.
+
+Có một vài cách khác để triển khai như `mmap`. `Mmap` có thể ghi lên disk và memory ở cùng một thời điểm. Nó sẽ map các file từ disk sang memory dưới dạng array, các thao tác append-only đều được triển khai rất nhanh.
+
+![Screenshot 2024-03-05 at 8 16 01](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/215cfe2c-0b77-4fdc-854d-643ed9ac3264)
+
+#### File-based state
+
+Khi lưu state trong DB, trong môi trường production, DB sẽ được đặt ở một server riêng biệt và phải truy cập thông qua network. Và cũng tương tự như commands và state, chúng ta cũng cần một cơ chế để tối ưu hoá việc lưu trữ các state information.
