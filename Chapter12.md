@@ -511,4 +511,41 @@ Command sẽ gen ra event thế nhưng trong quá trình gen ra event sẽ có n
 
 Event biểu thị lịch sử thay đổi state, event là `immutable` và có thể được sử dụng để rebuild state, do đó điều quan trọng ở đây đó là **Tính tin cậy cao của event**.
 
-#### Tính cố kết
+#### Consensus
+
+Để tăng tính tin cậy, ta cần replicate event list trên nhiều nodes. Trong quá trình replicate, ta cần xem xét các yếu tố sau:
+
+1. Dữ liệu không được phép mất.
+2. Trình tự/ Thứ tự của dữ liệu ở các nodes phải giống như trong log file.
+
+Giải thuật Consensus đảm bảo việc các nodes có tính "cố kết" giống như event list. Lấy giải thuật "Raft consensus" làm ví dụ. Giải thuật này quy định, khi số lượng nodes online lớn hơn 1/2 tổng số nodes thì hệ thống được coi là hoạt động tốt
+
+![Screenshot 2024-03-07 at 7 57 23](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/a1743900-fd0d-454e-b222-d9fdb7543d76)
+
+Một node có thể có 3 roles trong giải thuật Raft.
+
+1. Leader
+2. Candidate
+3. Follower
+
+Trong giải thuật Raft, chỉ có nhiều nhất 1 node là leader trong cluster và các nodes còn lại sẽ là followers. Leader sẽ nhận các external commands và replicating dữ liệu trên các nodes thuộc cluster.
+
+Trong giải thuật Raft, hệ thống được coi là đáng tin cậy khi phần lớn các nodes đều hoạt động. Ví dụ, nếu có 3 nodes trong cluster, nó có thể chịu lỗi (fault-tolerant) 1 node, với 5 nodes sẽ là sự chịu lỗi trên 2 nodes.
+
+#### Reliable solution
+
+Với replication, sẽ không có tình trạng SPOF trong event sourcing architecture của chúng ta. Dưới đây sẽ là chi tiết
+
+![Screenshot 2024-03-07 at 8 13 23](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/3f264b12-9b9d-4f5f-a910-f1582064db54)
+
+Ở hình trên chúng ta sử dụng 3 event sourcing nodes, các nodes này sử dụng giải thuật Raft để đồng bộ hoá các event list.
+
+Leader nhận command từ external user, chuyển hoá nó thành event, đưa vào event list. Giải thuật Raft sẽ đồng bộ event list từ leader đến các follower, sau đó các xử lí cục bộ ở từng node sẽ cập nhật local state, việc này luôn đảm bảo rằng chỉ cần các event list giống nhau thì state ở các nodes sẽ luôn giống nhau.
+
+Thế nhưng khi leader crash, ta cần có một cơ chế để xử lí ngay lập tức. Khi leader node bị crashed, một trong số các nodes còn lại (healthy node) sẽ được chọn để làm leader mới, leader mới này sẽ nhận command từ external user.
+
+Khi leader bị crashes và leader mới chưa được thiết lập, client sẽ nhận về error response hoặc timeout, lúc này client cần retry (gửi lại command trước đó) cho leader mới.
+
+Ngược lại khi follower crashes, mọi chuyện dễ dàng hơn rất nhiều, khi này request tới nó sẽ fail, Raft sẽ retry cho đến khi hoặc "node được hồi phục" hoặc "có node mới thay thế".
+
+### Distributed event sourcing
