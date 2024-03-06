@@ -455,4 +455,60 @@ Có một vài cách khác để triển khai như `mmap`. `Mmap` có thể ghi 
 
 #### File-based state
 
-Khi lưu state trong DB, trong môi trường production, DB sẽ được đặt ở một server riêng biệt và phải truy cập thông qua network. Và cũng tương tự như commands và state, chúng ta cũng cần một cơ chế để tối ưu hoá việc lưu trữ các state information.
+Khi lưu state trong DB, trong môi trường production, DB sẽ được đặt ở một server riêng biệt và phải truy cập thông qua network. Và cũng tương tự như commands và state, chúng ta cũng cần một cơ chế để tối ưu hoá việc lưu trữ các state information trong local disk.
+
+Cụ thể hơn nữa, chúng ta có thể sử dụng SQLite SQLite - file-based RDB hoặc RockDB (local file-based key-value store).
+
+Ta sẽ sử dụng RockDB vì nó sử dụng log-structured merge-tree (LSM) - đã được tối ưu cho thao tác ghi, để cải thiện việc đọc - read, ta có thể sử dụng cached
+
+![Screenshot 2024-03-06 at 23 08 48](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/ad8dda56-eabc-4ae4-8356-386e62bd422d)
+
+#### Snapshot
+
+Đây là một giải pháp giúp chúng ta tối ưu hoá tính `repoducibility` thay vì bắt state-machine phải xử lí events từ đầu.
+
+Với Snapshot, chúng ta sẽ lưu state vào một file. Mỗi một snapshot sẽ là một immutable view của historical state, khi snapshot được lưu, state machine sẽ không phải restart từ ban đầu nữa. State machine có thể đọc dữ liệu từ snapshot, bắt đầu xử lí từ đây.
+
+Với finance team, họ thường yêu cầu việc lấy snapshot bắt đầu từ `00:00` với mục đích verify mọi transactions đã diễn ra trong một ngày.
+
+Khi giới thiệu về CQRS cho event-sourcing, giải pháp ở đây đó là thiết lập read-only state machine để đọc từ thời điểm mà ta muốn bắt đầu tracking, với snapshots, state machine chỉ cần load snapshot bao gồm dữ liệu là đủ.
+
+Snapshot thường là một binary file lớn, giải pháp cho nó sẽ là lưu nó trong object storage (ví dụ như HDFS).
+
+Hình dưới đây minh hoạ cho `file-based event sourcing architecture`. Khi mọi thứ là file-based, hệ thống có thể tận dụng tối đa I/O throughput của hardware.
+
+![Screenshot 2024-03-06 at 23 23 06](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/5923604d-f504-418c-a1d6-e08dc48c5d42)
+
+Việc lưu state, command, event ở local disk sẽ làm cho server hiện thời là stateful và xảy ra SPOF, vậy làm cách nào để cải thiện tính tin cậy của hệ thống ?
+
+### Tính tin cậy, hiệu năng cao của event-sourcing
+
+#### Phân tích tính tin cậy
+
+Hoạt động của mỗi một node trong hệ thống phân tán đều chỉ xoay quanh 2 khái niệm:
+
+1. Dữ liệu
+2. Computation (tính toán)
+
+Ta có thể thực thi việc tính toán ở bất kì node nào nên điều mà ta cần lo lắng ở đây chỉ là tính tin cậy của dữ liệu vì khi dữ liệu mất, chúng ta sẽ mất tất cả. Nên do đó:
+
+> Tính tin cậy của hệ thống chính là tính tin cậy của dữ liệu
+
+Có 4 loại dữ liệu trong hệ thống của chúng ta:
+
+1. File-based command
+2. File-based event
+3. File-based state
+4. State snapshot
+
+State và snapshot luôn luôn có thể gen lại nhờ việc "kích hoạt lại" event list, do đó để đảm bảo tính tin cậy của state và snapshot ta chỉ cần đảm bảo event list có tính tin cậy cao.
+
+Command sẽ gen ra event thế nhưng trong quá trình gen ra event sẽ có những yếu tố ngẫu nhiên như:
+
+- Random numbers
+- External I/O
+- ...
+
+Event biểu thị lịch sử thay đổi state, event là `immutable` và có thể được sử dụng để rebuild state, do đó điều quan trọng ở đây đó là **Tính tin cậy cao của event**.
+
+#### Tính cố kết
