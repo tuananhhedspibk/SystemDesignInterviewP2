@@ -549,3 +549,45 @@ Khi leader bị crashes và leader mới chưa được thiết lập, client s�
 Ngược lại khi follower crashes, mọi chuyện dễ dàng hơn rất nhiều, khi này request tới nó sẽ fail, Raft sẽ retry cho đến khi hoặc "node được hồi phục" hoặc "có node mới thay thế".
 
 ### Distributed event sourcing
+
+Việc triển khai high-performance event sourcing architecture như đã nói ở phần trước tuy giúp tăng tính tin cậy của hệ thống nhưng vẫn còn đó 2 hạn chế sau:
+
+1. Khi update digital wallet, kết quả không có ngay lập tức. Theo như CQRS design, request/ response có thể chậm và do đó client có thể cần một cơ chế polling để cập nhật.
+2. Capacity của Raft group bị hạn chế. Nếu muốn scale, ta cần shard data và triển khai distributed transactions.
+
+#### Pull vs push
+
+Trong pull model, external user sẽ định kì poll execution status từ read-only state machine. Mô hình này không đảm bảo trạng thái real-time và cũng có thể gây ra quá tải cho wallet service nếu tần suất poll được thiết lập cao.
+
+![Screenshot 2024-03-08 at 7 41 36](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/16b748a9-4aa2-4caf-8a61-189436b33c83)
+
+Mô hình sơ khai như trên có thể được cải thiện bằng cách thêm "reverse proxy" giữa external user và event-sourcing node. Trong thiết kế này, client sẽ gửi command đến cho proxy, proxy sau đó sẽ gửi command đến event sourcing nodes và định kì poll về execution status.
+
+![Screenshot 2024-03-08 at 7 49 02](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/530db04f-fbdc-43ce-864b-f73ea85e98f1)
+
+Khi có được reverse proxy, chúng ta có thể làm cho response nhanh hơn bằng việc chỉnh sửa read-only state machine. Read-only state machine có thể có behavior riêng, ví dụ: state machine có thể "chủ động" push execution status của nó "ngược lại" cho reverse proxy ngay khi nó nhận được event.
+
+Điều này sẽ làm cho user có cảm giác nhận được response gần như real-time.
+
+![Screenshot 2024-03-08 at 7 48 32](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/c2b071c2-c796-47df-aaf3-74b822be0d54)
+
+Đây chính là mô hình push.
+
+### Distributed transaction
+
+Khi việc đồng bộ hoá giữa các event sourcing node được đảm bảo, ta có thể tái sử dụng lại "distributed transaction", TC/C hoặc Saga. Giả sử chúng ta chia dữ liệu bằng hash value theo 2. Ta có thiết kế như sau:
+
+![Screenshot 2024-03-08 at 7 56 21](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/7fedb57a-586f-461b-8718-e07add808a20)
+
+Giờ chúng ta sẽ cùng nhau đi 1 vòng flow chuyển tiền trong hệ thống phân tán (chỉ xét trường hợp thành công mà không có rollback). Giả sử rằng hệ thống sử dụng Saga distributed transaction model.
+
+Việc chuyển tiền bao gồm 2 thao tác phân tán:
+
+- A: -$1
+- C: +$1
+
+![Screenshot 2024-03-08 at 8 06 19](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/fb02a2c3-0718-401f-978c-64b65ccad179)
+
+1. User A gửi một distributed transaction tới Saga coordinator, nó bao gồm 2 thao tác: A -$1 và C +$1.
+2. Saga coordinator tạo một record trong phase status table để theo dõi status của transaction.
+3. Saga coordinator phân tích thứ tự của các thao tác, phán đoán những gì nó cần xử lí, đầu tiên sẽ là A: -$1, coordinator sẽ gửi A: -$1 (dưới dạng command tới partition 1), bao gồm cả thông tin của account A.
