@@ -616,4 +616,4 @@ Kế tiếp, chúng ta sử dụng event sourcing nhưng việc lưu trữ trên
 
 Việc sử dụng một node đơn đồng nghĩa với SPOF, nên ta sử dụng `Raft consensus algorithm` để đồng bộ hoá command, event, state trên nhiều nodes khác nhau.
 
-Thử thách cuối cùng ở đây đó là việc xử lí
+Thử thách cuối cùng ở đây đó là việc xử lí CQRS và event-sourcing, bằng cách sử dụng reverse-proxy, chúng ta đã xử lí được vấn đề async response với client. TC/C và Saga được sử dụng để điều phối command giữa các node groups.
