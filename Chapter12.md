@@ -588,6 +588,32 @@ Việc chuyển tiền bao gồm 2 thao tác phân tán:
 
 ![Screenshot 2024-03-08 at 8 06 19](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/fb02a2c3-0718-401f-978c-64b65ccad179)
 
-1. User A gửi một distributed transaction tới Saga coordinator, nó bao gồm 2 thao tác: A -$1 và C +$1.
+1. User A gửi một distributed transaction tới Saga coordinator, nó bao gồm 2 thao tác: `A -$1` và `C +$1`.
 2. Saga coordinator tạo một record trong phase status table để theo dõi status của transaction.
-3. Saga coordinator phân tích thứ tự của các thao tác, phán đoán những gì nó cần xử lí, đầu tiên sẽ là A: -$1, coordinator sẽ gửi A: -$1 (dưới dạng command tới partition 1), bao gồm cả thông tin của account A.
+3. Saga coordinator phân tích thứ tự của các thao tác, phán đoán những gì nó cần xử lí, đầu tiên sẽ là `A: -$1`, coordinator sẽ gửi `A: -$1` (dưới dạng command tới partition 1), bao gồm cả thông tin của account A.
+4. Raft leader node của partition 1 nhận `A: -$1` command, validate nó, nếu command valid, command sẽ được chuyển hoá thành event (trước đó command cũng sẽ được đưa vào command list). Event sau đó sẽ được replicate sang các node khác rồi mới được thực thi.
+5. Sau khi event được đồng bộ hoá, event sourcing framework của partition 1 sẽ đồng bộ hoá dữ liệu sang `read path` bằng CQRS, read path sẽ tiến hành reconstruct execution status và state.
+6. Read path của partition 1 sẽ push status ngược lại cho phía caller của event sourcing framework - ở đây là `Saga coordinator`.
+7. Saga coordinator nhận success response từ partition 1.
+8. Saga coordinator sẽ tạo các records để đánh dấu rằng việc thực thi ở partition 1 là thành công trong `phase status table`.
+9. Vì thao tác trừ tiền từ account A đã thành công nên Saga coordinator sẽ gửi command còn lại là `C: +$1` sang cho partition 2 kèm theo thông tin của account C.
+10. Raft leader node của partition 2 nhận command, lưu nó vào command list, validate nó, nếu command valid sẽ tiến hành convert command thành event. Event sau đó sẽ được đồng bộ hoá giữa các node, event `C: +$1` sau đó sẽ được thực thi.
+11. Sau khi thực thi event xong, CQRS sẽ tiến hành cập nhật dữ liệu cho read path, read path sẽ tiến hành reconstruct execution status và state.
+12. Read path của partition 2 sẽ push status ngược lại cho caller - ở đây là saga coordinator.
+13. Saga coordinator nhận success response từ partition 2.
+14. Saga cooridnator tạo record trong `phase status table` để đánh dấu việc thực thi ở partition 2 là thành công.
+15. Ở thời điểm này các thao tác đều thành công và distributed transaction được coi là "kết thúc thành công", lúc này saga coordinator sẽ trả về kết quả cho phía client.
+
+## Bước 4: Tổng kết
+
+Trong chương này chúng ta đã thiết kế một wallet service với khả năng xử lí cả triệu command trên giây.
+
+Với thiết kế ban đâu, việc sử dụng in-memory database là không hề hợp lí do tính "bền chặt" của dữ liệu không được đảm bảo.
+
+Với thiết kế thứ hai, chúng ta tiến hành thay thế in-memory database bằng transactional database cùng các protocol như 2PL, TC/C, Saga để tiến hành thực thi trên nhiều nodes. Vấn đề với transaction đó là chúng ta không thể tiến hành "kiểm toán" dữ liệu một cách dễ dàng được.
+
+Kế tiếp, chúng ta sử dụng event sourcing nhưng việc lưu trữ trên external DB hoặc queue không đảm bảo hiệu năng nên chúng ta quyết định lưu trữ command, event, state trên local node.
+
+Việc sử dụng một node đơn đồng nghĩa với SPOF, nên ta sử dụng `Raft consensus algorithm` để đồng bộ hoá command, event, state trên nhiều nodes khác nhau.
+
+Thử thách cuối cùng ở đây đó là việc xử lí
