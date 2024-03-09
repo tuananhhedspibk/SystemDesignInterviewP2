@@ -77,3 +77,7 @@ Theo như yêu cầu ở phần **back-of-envelope estimate**, ta thấy rằng 
 Do bản thân các thuộc tính của các bảng nói trên đã tự định nghĩa nó là gì, nên ở đây chúng ta chỉ đi sâu vào cột `status` của bảng `room` với các giá trị như sau:
 
 ![Screenshot 2024-03-09 at 23 21 09](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/c0de77c5-d471-478d-ad60-ebc48713b25d)
+
+Thực ra data model phía trên sẽ thích hợp cho Airbnb do khi người dùng tiến hành đặt phòng họ đã phải biết chính xác mình chọn phòng nào nên việc sử dụng `room_id` là hoàn toàn hợp lý. Nhưng với hệ thống đặt phòng của khách sạn thì người dùng chỉ quan tâm dến **loại phòng** thay vì chính xác phòng nào (phòng nào sẽ được quyết định khi khách hàng làm thủ tục check-in chứ không phải thời gian đặt phòng).
+
+### High-level design
