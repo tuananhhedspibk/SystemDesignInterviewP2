@@ -46,3 +46,28 @@ Hình trên đây sẽ cho thấy bản estimate "thô" về QPS, ở đây ta l
 ## Bước 2: High-level design
 
 ### API design
+
+Với hệ thống đặt phòng này, ta sẽ thiết kế theo hướng RESTful API.
+
+![Screenshot 2024-03-09 at 16 28 13](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/1e53d81b-8114-4f23-9f6e-34fe70ba1c55)
+
+![Screenshot 2024-03-09 at 16 29 00](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/4fdedac9-0acf-4ce8-aa14-d7f6a38f74b9)
+
+![Screenshot 2024-03-09 at 16 29 42](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/7900d4a0-886c-42ed-b20d-87a4a020a80e)
+
+Chú ý rằng `reservation ID` sẽ được sử dụng như idempotency key để tránh double book (ở đây mang ý nghĩa là nhiều lần đặt cùng 1 phòng tại cùng 1 thời điểm).
+
+### Data model
+
+Với hệ thống đặt phòng khách sạn, chúng ta cần support những câu queries sau:
+
+- Query 1: Xem thông tin chi tiết về khách sạn.
+- Query 2: Tìm các loại phòng hiện có trong một khoảng thời gian nhất định.
+- Query 3: Đặt phòng.
+- Query 4: Tìm lịch sử đặt phòng.
+
+Theo như yêu cầu ở phần **back-of-envelope estimate**, ta thấy rằng quy mô hệ thống không quá lớn, chỉ cần đáp ứng được những đợt cao điểm du lịch là đủ, do đó ta sẽ sử dụng RDB ở đây với những lí do như sau:
+
+- **RDB hoạt động tốt với read-heavy và write less** do trong thực tế số lượng những người thực sự đặt phòng ít hơn rất nhiều so với những người xem thông tin về khách sạn và phòng (NoSQL hoạt động tốt hơn với các ứng dụng ghi nhiều hơn đọc).
+- RDB cung cấp ACID (atomicity, consitency, isolation, durability), ACID sẽ phát huy sức mạnh với các hệ thống reservation kiểu này do nó xử lí tốt các vấn đề như **negative balance**, **double charge**, **double reservations**, ... ACID sẽ giúp cho application code đơn giản hơn rất nhiều.
+- RDB cũng dễ dàng giúp mô hình hoá dữ liệu. Do cấu trúc của business data đã rất rõ ràng và mối quan hệ giữa các entities (hotel, room, room_type, ...) cũng ổn định,
