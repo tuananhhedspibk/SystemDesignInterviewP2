@@ -70,4 +70,10 @@ Theo như yêu cầu ở phần **back-of-envelope estimate**, ta thấy rằng 
 
 - **RDB hoạt động tốt với read-heavy và write less** do trong thực tế số lượng những người thực sự đặt phòng ít hơn rất nhiều so với những người xem thông tin về khách sạn và phòng (NoSQL hoạt động tốt hơn với các ứng dụng ghi nhiều hơn đọc).
 - RDB cung cấp ACID (atomicity, consitency, isolation, durability), ACID sẽ phát huy sức mạnh với các hệ thống reservation kiểu này do nó xử lí tốt các vấn đề như **negative balance**, **double charge**, **double reservations**, ... ACID sẽ giúp cho application code đơn giản hơn rất nhiều.
-- RDB cũng dễ dàng giúp mô hình hoá dữ liệu. Do cấu trúc của business data đã rất rõ ràng và mối quan hệ giữa các entities (hotel, room, room_type, ...) cũng ổn định,
+- RDB cũng dễ dàng giúp mô hình hoá dữ liệu. Do cấu trúc của business data đã rất rõ ràng và mối quan hệ giữa các entities (hotel, room, room_type, ...) cũng ổn định.
+
+![Screenshot 2024-03-09 at 23 18 56](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/6499b7b7-c27a-4500-9cdb-9339113b3d1c)
+
+Do bản thân các thuộc tính của các bảng nói trên đã tự định nghĩa nó là gì, nên ở đây chúng ta chỉ đi sâu vào cột `status` của bảng `room` với các giá trị như sau:
+
+![Screenshot 2024-03-09 at 23 21 09](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/c0de77c5-d471-478d-ad60-ebc48713b25d)
