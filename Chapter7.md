@@ -130,4 +130,20 @@ Với reservation API, `roomID` sẽ được thay bởi `roomTypeID` trong requ
 
 Schema mới sẽ như sau:
 
-![Screenshot 2024-03-10 at 12 28 18](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/202d80d0-093d-4065-9d6c-1fd849949d14)
+![Screenshot 2024-03-11 at 7 55 17](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/a1251ff9-73e0-496e-b584-383a48d80ece)
+
+Chúng ta sẽ phân tích một vài bảng quan trọng như sau:sau
+
+- `room`: thông tin về phòng.
+- `room_type_rate`: thông tin về giá của từng loại phòng.
+- `reservation`: lưu thông tin đặt phòng.
+- `room_type_inventory`: lưu thông tin về việc phân bổ phòng. Bảng này có các cột như sau:
+  - hotel_id: ID của khách sạn.
+  - room_type_id: ID của loại phòng.
+  - date: thông tin về ngày.
+  - total_inventory: tổng số phòng trừ đi số phòng đang được chưng dụng tạm thời (có thể cho mục đích dọn dẹp, ...).
+  - total_reserved: tổng số phòng đã được đặt.
+
+Việc quản lí các bản ghi trong bảng `room_type_inventory` theo ngày sẽ giúp việc query dữ liệu theo date range trở nên dễ dàng hơn.
+
+Như trong hình mô tả schema trên, **(hotel_id, room_type_id, date)** là **composite primary key**. Chúng ta sẽ có daily jobs để tạo ra các inventory data cho tương lai.
