@@ -81,3 +81,53 @@ Do bản thân các thuộc tính của các bảng nói trên đã tự định
 Thực ra data model phía trên sẽ thích hợp cho Airbnb do khi người dùng tiến hành đặt phòng họ đã phải biết chính xác mình chọn phòng nào nên việc sử dụng `room_id` là hoàn toàn hợp lý. Nhưng với hệ thống đặt phòng của khách sạn thì người dùng chỉ quan tâm dến **loại phòng** thay vì chính xác phòng nào (phòng nào sẽ được quyết định khi khách hàng làm thủ tục check-in chứ không phải thời gian đặt phòng).
 
 ### High-level design
+
+Chúng ta sẽ sử dụng kiến trúc micro-service ở đây.
+
+![Screenshot 2024-03-10 at 11 47 29](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/854aa6e1-6a91-451f-bcdc-3c4cce3ffeba)
+
+Chúng ta sẽ đi phân tích một vài components chính có trong thiết kế trên.
+
+- `Public API Gateway`: hỗ trợ rate-limiting, authentication, ... Ngoài ra api gateway cũng redirect request đến service tương ứng tuỳ theo endpoint mà nó nhận được, ví dụ: request load các thông tin về khách sạn sẽ được điều hướng đến `hotel service`, request đặt phòng sẽ được điều phối đến `reservation service`.
+- `Interal APIs`: các API này chỉ có thể được sử dụng bởi các authorized staff, chúng được truy cập thông qua các internal sofware hoặc websites. Thường sẽ được bảo vệ bởi VPN.
+- `Hotel service`: cung cấp các thông tin liên quan đến khách sạn hoặc phòng, đây đa phần đều là các static data nên có thể cache lại được.
+- `Rate service`: cung cấp thông tin về giá phòng, có một sự thật trong ngành công nghiệp khách sạn đó là khi số lượng phòng càng ít thì giá phòng sẽ lại càng cao.
+
+Trong thực tế giữa các services sẽ có sự tương tác qua lại, ví dụ như hình dưới đây:
+
+![Screenshot 2024-03-10 at 11 58 06](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/977320f8-b22c-4963-9c6f-b197603aee17)
+
+Giữa `Rate service` và `Reservation service` sẽ có sự tương tác qua lại do `Reservation service` cần biết giá phòng để tính toán giá tiền mà người dùng phải trả. Hoặc khi `Hotel manangement service` thay đổi thông tin liên quan đến giá, phòng, ... thì những sự thay đổi này cần phải được cập nhận đến các services như `Hotel service` và `Rate service`.
+
+Về việc tương tác giữa các inter-service, ta sẽ sử dụng RPC (remote procedure call) cũng như các framework như gRPC.
+
+### Deep-Dive Design
+
+Trong phần này chúng ta sẽ đi sâu vào các vấn đề sau:
+
+- Cải thiện data model.
+- Concurrency issues.
+- Scaling system.
+- Giải quyết vấn đề dữ liệu không thống nhất trong kiến trúc micro-service.
+
+#### Cải thiện data model
+
+Như đã nói trong phần high-level design, khi người dùng đặt phòng, họ chỉ lựa chọn và "đặt loại phòng" chứ không phải là một phòng cụ thể nào cả. Vậy ta cần thay đổi API và schema như thế nào ?
+
+Với reservation API, `roomID` sẽ được thay bởi `roomTypeID` trong request parameter. API đặt phòng sẽ trông như thế này.
+
+```json
+// POST /v1/reservations
+
+{
+  "startDate": "2021-04-28",
+  "endDate": "2021-04-30",
+  "hotelID": "245",
+  "roomTypeID": "123456789",
+  "reservationID": "13422445"
+}
+```
+
+Schema mới sẽ như sau:
+
+![Screenshot 2024-03-10 at 12 28 18](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/202d80d0-093d-4065-9d6c-1fd849949d14)
