@@ -161,4 +161,46 @@ Bảng **room_type_inventory** sẽ kiểm tra xem một người dùng có kh�
 
 Nếu nhìn từ quan điểm SQL, ta sẽ có 2 bước sau:
 
-1.
+1. SELECT dữ liệu trong date range
+
+```sql
+SELECT date, total_inventory, total_reserved
+FROM room_type_inventory
+WHERE room_type_id = ${roomTypeId} AND hotel_id = ${hotelId}
+AND date between ${startDate} and ${endDate}
+```
+
+![Screenshot 2024-03-12 at 7 58 06](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/37954a61-3975-4ad6-bcea-3c1df4891bce)
+
+2. Với mỗi record, application sẽ kiểm tra điều kiện sau
+
+```ts
+if (total_reserved + numberOfRoomsToReserver <= total_inventory) {
+}
+```
+
+Nếu với mọi records, kết quả là `true` thì có nghĩa là còn phòng cho mọi ngày trong date range đó.
+
+Với điều kiện support 10% overbooking, ta có thể triển khai dễ dàng với schema mới như sau:
+
+```ts
+if (total_reserved + numberOfRoomsToReserver <= total_inventory * 1.1) {
+  // 1.1 ~ 110%
+}
+```
+
+Trong trường hợp reservation data quá lớn, dưới đây sẽ là một vài giải pháp:
+
+- Chỉ lưu reservation data hiện thời và trong tương lai, các data cũ sẽ bị archived hoặc đưa vào "cold storage".
+- Database sharding, các câu queries thường dùng bao gồm "tạo reservation" và "tìm reservation bằng tên", cả hai câu queries loại này đều cần đến `hotel_id` do đó ta có thể lựa chọn `hotel_id` như là một sharding key, dữ liệu sẽ được shared bằng công thức `hash(hotel_id) % number_of_servers`.
+
+#### Concurrency issues
+
+Một vấn đề khác ở đây cần phải giải quyết đó là "double booking", cụ thể như sau:
+
+1. Một user click nút đặt phòng nhiều lần.
+2. Nhiều users cùng đặt một phòng tại cùng thời điểm.
+
+Với kịch bản đầu tiên, ta có thể mô phỏng lại như hình dưới đây
+
+![Screenshot 2024-03-12 at 8 22 51](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/6ec3b00a-f696-42ef-8177-7da711e695e5)
