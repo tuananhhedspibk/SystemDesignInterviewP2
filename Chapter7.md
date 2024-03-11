@@ -146,4 +146,19 @@ Chúng ta sẽ phân tích một vài bảng quan trọng như sau:sau
 
 Việc quản lí các bản ghi trong bảng `room_type_inventory` theo ngày sẽ giúp việc query dữ liệu theo date range trở nên dễ dàng hơn.
 
-Như trong hình mô tả schema trên, **(hotel_id, room_type_id, date)** là **composite primary key**. Chúng ta sẽ có daily jobs để tạo ra các inventory data cho tương lai.
+Như trong hình mô tả schema trên, **(hotel_id, room_type_id, date)** là **composite primary key**. Chúng ta sẽ có daily jobs để tạo ra các inventory data cho tương lai (trong 2 năm).
+
+Giờ chúng ta sẽ thử estimate lượng dữ liệu sẽ được lưu trữ trong tương lai, như ở phần **back-of-the-envelope estimate** ta sẽ có 5000 khách sạn, mỗi khách sạn sẽ có 20 loại phòng nên số lượng bản ghi sẽ là:
+
+> 5000 x 20 x 2 (năm) x 365 (ngày) = 73 triệu
+
+73 triệu không phải là một con số quá lớn đối với single database, tuy nhiên single server đồng nghĩa với SPOF. Để tăng tính sẵn có cho hệ thống, ta sẽ tạo ra thêm replication trên nhiều regions hoặc AZ.
+
+Bảng **room_type_inventory** sẽ kiểm tra xem một người dùng có khả năng đặt phòng hay không. Input và Output sẽ như sau:
+
+- Input: `startDate (2021-07-01)`, `endDate (2021-07-03)`, `roomTypeId`, `hotelId`, `numberOfRoomsToReserve`.
+- Output: `True` nếu inventory data đủ chỗ chứa, `False` ngược lại.
+
+Nếu nhìn từ quan điểm SQL, ta sẽ có 2 bước sau:
+
+1.
