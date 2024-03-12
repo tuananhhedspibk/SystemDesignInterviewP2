@@ -213,3 +213,11 @@ Có hai cách tiếp cận để giải quyết vấn đề này:
 Hình dưới đây sẽ mô tả việc sử dụng `reservation_id` để tránh double-reservation issue.
 
 ![Screenshot 2024-03-12 at 9 15 29](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/570ed64c-a3b5-4cc0-a0f0-c8cd21e84788)
+
+1. Generate reservation order, sau khi người dùng nhập thông tin chi tiết về reservation reservation (room type, check-in date, check-out date) và click submit button, reservation order sẽ được gen bởi reservation service.service
+2. Hệ thống sẽ gen ra reservation order cho người dùng review, đồng thời `reservation_id` cũng sẽ được gen bởi `global unique ID generator`.
+3. Bước 3
+   3.a. Submit reservation 1, `reservation_id` sẽ được coi như một phần của request, chúng ta cũng không nhất thiết phải sử dụng `reservation_id` như một idempotency key, thế nhưng trong thiết kế lần này nó hoạt động tốt và ta cũng sẽ sử dụng `reservation_id` như một primary key cho bảng reservation.
+   3.b. Nếu user click nút submit lần 2, reservation 2 được submit đi, thế nhưng do `reservation_id` đã được sử dụng làm primary key của bảng reservation nên điều kiện này sẽ đảm bảo việc không có **double reservation**.
+
+![Screenshot 2024-03-13 at 8 25 46](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/ed12400b-572a-43ab-be7c-39deb8f3d8e3)
