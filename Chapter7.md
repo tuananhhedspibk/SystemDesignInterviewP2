@@ -204,3 +204,12 @@ Một vấn đề khác ở đây cần phải giải quyết đó là "double b
 Với kịch bản đầu tiên, ta có thể mô phỏng lại như hình dưới đây
 
 ![Screenshot 2024-03-12 at 8 22 51](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/6ec3b00a-f696-42ef-8177-7da711e695e5)
+
+Có hai cách tiếp cận để giải quyết vấn đề này:
+
+- Phía client sẽ disable button sau khi nó được click, tuy nhiên cách làm này không có độ tin cậy cao do client có thể disable đi JS.
+- Idempotent APIs, thêm idempontency key trong reservation API request. Một API call được coi là idempotent chỉ khi cho dù nó được gọi nhiều lần thì kết quả vẫn giống nhau.
+
+Hình dưới đây sẽ mô tả việc sử dụng `reservation_id` để tránh double-reservation issue.
+
+![Screenshot 2024-03-12 at 9 15 29](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/570ed64c-a3b5-4cc0-a0f0-c8cd21e84788)
