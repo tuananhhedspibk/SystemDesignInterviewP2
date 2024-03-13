@@ -221,3 +221,47 @@ Hình dưới đây sẽ mô tả việc sử dụng `reservation_id` để trá
    3.b. Nếu user click nút submit lần 2, reservation 2 được submit đi, thế nhưng do `reservation_id` đã được sử dụng làm primary key của bảng reservation nên điều kiện này sẽ đảm bảo việc không có **double reservation**.
 
 ![Screenshot 2024-03-13 at 8 25 46](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/ed12400b-572a-43ab-be7c-39deb8f3d8e3)
+
+Với kịch bản thứ hai: điều gì sẽ xảy ra khi có nhiều users cùng đặt một loại phòng vào cùng một thời điểm trong khi chỉ còn duy nhất 1 phòng.
+
+![Screenshot 2024-03-14 at 7 53 37](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/9e6cd0cf-0c40-4a55-b7ff-fa00e7378146)
+
+1. Giả sử database isolation level không phải là serializable. User 1 và User cùng đặt một loại phòng ở cùng một thời điểm nhưng chỉ còn duy nhất 1 phòng còn lại. Ta sẽ có `transaction 1`, `transaction 2` lần lượt tương ứng với xử lí của hai users, lúc này có 100 phòng trong khách sạn và có 99 phòng đã được đặt.
+2. `Transaction 2` sẽ kiểm tra xem có đủ phòng còn lại không bằng phép `if(total_reserved + rooms_to_book) <= total_inventory`. Do còn lại 1 phòng nên trả về `True`.
+3. `Transaction 1` cũng sẽ kiểm tra xem có đủ phòng còn lại không bằng phép `if(total_reserved + rooms_to_book) <= total_inventory`. Do còn lại 1 phòng nên trả về `True`.
+4. `Transaction 1` đặt phòng và cập nhật inventory: `reserved_room` sẽ có giá trị là `100`.
+5. `Transaction 2` đặt phòng. Do đặc tính **isolation** của ACID (tức là mọi thay đổi của transaction sẽ không được nhìn thấy bởi các transaction khác cho dến khi transaction được committed), do đó `transaction 2` sẽ vẫn thấy `total_reserved = 99` và `transaction 2` vẫn có thể đặt được phòng, sau đó nó sẽ cập nhật giá trị của `reserved_room` thành `100`. Kết quả này cho phép hai users cùng đặt được phòng dù chỉ còn 1 phòng duy nhất.
+6. `Transaction 1` commit thành công.
+7. `Transaction 2` commit thành công.
+
+Để giải quyết vấn đề này ta cần có cơ chế "lock", một vài kĩ thuật "lock" tiêu biểu sẽ như sau:
+
+- Pessimistic locking
+- Optimistic locking
+- Database constrants
+
+Trước khi đi vào giải quyết vấn đề, chúng ta cùng xem xét mã giả SQL khi tiến hành đặt phòng
+
+```SQL
+-- Step 1: check room inventory
+SELECT date, total_inventory, total_reserved
+FROM room_type_inventory
+WHERE room_type_id = ${roomTypeId} AND hotel_id = ${hotelId}
+AND date between ${startDate} AND ${endDate};
+
+-- For every entry returned from step 1
+if ((total_reserved + ${numberOfRoomsToReserve}) > 110% * total_inventory) {
+  Rollback;
+}
+
+-- Step 2: Reserve rooms
+UPDATE room_type_inventory
+SET tota_reserved = total_reserved + ${numberOfRoomsToReserve}
+WHERE room_type_id = ${roomTypeId}
+AND date between ${startDate} and ${endDate};
+
+Commit;
+```
+
+**Pessimistic locking:**
+Còn được gọi là pesimistic concurrency control, ngăn việc cập nhật đồng thời bằng cách đặt lock vào record ngay khi user bắt đầu tiến hành cập nhật record. User khác muốn cập nhật thì phải chờ đến khi lock được released (mọi sự thay đổi đã được commit)
