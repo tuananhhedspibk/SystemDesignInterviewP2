@@ -264,4 +264,29 @@ Commit;
 ```
 
 **Pessimistic locking:**
-Còn được gọi là pesimistic concurrency control, ngăn việc cập nhật đồng thời bằng cách đặt lock vào record ngay khi user bắt đầu tiến hành cập nhật record. User khác muốn cập nhật thì phải chờ đến khi lock được released (mọi sự thay đổi đã được commit)
+Còn được gọi là pesimistic concurrency control, ngăn việc cập nhật đồng thời bằng cách đặt lock vào record ngay khi user bắt đầu tiến hành cập nhật record. User khác muốn cập nhật thì phải chờ đến khi lock được released (mọi sự thay đổi đã được commit).
+
+Vơí MySQL, `SELECT ... FOR UPDATE` hoạt động bằng cách lock các rows trả về từ câu select, giả sử transaction 1 sẽ bắt đầu trước, lúc này các transactions khác sẽ phải chờ cho đến khi transaction 1 hoàn tất nhiệm vụ của mình thì mới được thực thi.
+
+![Screenshot 2024-03-15 at 8 01 00](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/a781b1ce-37d0-4777-9042-f786a820986c)
+
+Ở hình trên, câu `SELECT ... FOR UPDATE` của transaction 2 sẽ phải chờ vì các rows đã bị lock bởi transaction 1, sau khi transaction 1 kết thúc thì transaction 2 mới hoạt động, lúc này `total_reserved = 100` nên transaction 2 phải rollback.
+
+**Ưu điểm**:
+
+- Tránh việc ứng dụng cập nhật các dữ liệu đang được thay đổi.
+- Dễ dàng triển khai và nó tránh được conflict do đã "tuần tự hoá" thứ tự cập nhật, Pessimistic locking rất hữu dụng khi sự "tranh chấp" dữ liệu xảy ra thường xuyên.
+
+**Nhược điểm**:
+
+- Deadlock có thể xảy ra khi nhiều resources được locked, viết một deadlock-free application không phải là một điều dễ dàng.
+- Cách làm này khá khó để scale do có thể phát sinh trường hợp transaction lock dữ liệu trong một khoảng thời gian dài dẫn đến các transactions khác không thể truy cập được resources từ đó làm ảnh hưởng đến hiệu năng của DB đặc biệt là khi transaction `long-lived` hat tác động đến nhiều entities.
+
+Do đó chúng ta **KHÔNG NÊN** sử dụng pessimistic locking cho reservation system.
+
+**Optimisitc locking**: còn được gọi là **optimistic concurrency control**, cho phép nhiều users có thể đồng thời update cùng một resource.
+
+Có hai cách triển khai đó là:
+
+- Timestamp
+- Version number (đây là cách làm được ưa chuộng hơn do đồng hộ hệ thống có thể không chính xác ở một vài thời điểm)
