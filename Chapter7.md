@@ -320,3 +320,27 @@ Các clients sẽ nhận về cùng một `version number` và cùng một `tota
 ```sql
 CONSTRAINT `check_room_count` CHECK((`total_inventory - total_reserved` >= 0))
 ```
+
+![Screenshot 2024-03-15 at 15 47 38](https://github.com/tuananhhedspibk/NewAnigram-Infrastructure/assets/15076665/21e1330b-fc10-46c3-aa89-d17876fb0223)
+
+**Ưu điểm**:
+
+- Dễ dàng triển khai.
+- Hoạt động tốt khi sự "cạnh tranh" dữ liệu nhỏ
+
+**Nhược điểm**:
+
+- Cũng tương tự như optimistic locking, tỉ lệ fail sẽ tăng khi sự "cạnh tranh" về mặt dữ liệu là đáng kể, khi đó user dù nhìn thấy "còn phòng" nhưng khi bấm nút "Đặt phòng" thì lại thu được kết quả "đặt phòng không thành công", từ đó làm ảnh hưởng đến trải nghiệm của người dùng.
+- Database constraint không hề dễ dàng quản lí bên phía application.
+- Không phải mọi DB đều hỗ trợ constraints, điều này cần đặc biệt lưu ý khi migrate sang một database solution khác.
+
+Do kĩ thuật này không quá khó triển khai cũng như trên thực tế các "reservation system" thường có "data contention" không quá cao (low QPS) nên đây cũng là một sự lựa chọn không hề tồi.
+
+### Scalability
+
+Thông thường, các hotel reservation system thường có load không quá cao, do đó trên thực tế việc scaling hệ thống cũng không nhất thiết phải quá chú trọng, thế nhưng interviewer có thể hỏi các câu hỏi như "Nếu hệ thống áp dụng cho các page lớn như booking.com hay expedia.com thì việc scaling sẽ diễn ra như thế nào ?"
+
+Trong thực tế, khi hệ thống được scale, ta cần nắm rõ **PHẦN NÀO CỦA HỆ THỐNG SẼ TRỞ THÀNH BOTTLENECK** để từ đó có thể đưa ra giải pháp phù hợp. Do servers của chúng ta là stateless nên việc scaling server khá đơn giản khi ta chỉ cần thêm servers mới là xong. Nhưng database là stateful nên việc scaling database không chỉ đơn thuần là thêm instances mới.
+
+#### Database sharding
+
