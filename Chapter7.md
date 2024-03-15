@@ -290,3 +290,33 @@ Có hai cách triển khai đó là:
 
 - Timestamp
 - Version number (đây là cách làm được ưa chuộng hơn do đồng hộ hệ thống có thể không chính xác ở một vài thời điểm)
+
+![Screenshot 2024-03-15 at 10 47 38](https://github.com/tuananhhedspibk/NewAnigram-Infrastructure/assets/15076665/1cbd19e6-b78c-4e62-982a-abe86e33dc1d)
+![Screenshot 2024-03-15 at 10 56 09](https://github.com/tuananhhedspibk/NewAnigram-Infrastructure/assets/15076665/6310170b-2dc8-44b3-88a6-79fddf249c68)
+
+1. Column với tên `version` được thêm vào bảng.
+2. Trước khi user chỉnh sửa row, user sẽ phải đọc version number.
+3. Khi cập nhật dữ liệu, version number sẽ được tăng lên 1 và cập nhật ngược lại vào DB.
+4. DB validation check nên được thực thi ở đây khi version tiếp theo nên hơn version hiện tại 1 đơn vị. Transaction abort nếu validation fail và user sẽ phải thử lại bước 2
+
+Optimistic locking thường nhanh hơn so với Pessimistic locking do nó không lock DB thế nhưng khi con-currency cao thì hiệu năng của optimistic locking sẽ bị giảm đi đáng kể.
+
+Ta cùng xem xét trường hợp có nhiều client cùng truy cập hệ thống, khi này sẽ có nhiều user cùng đặt một loại phòng ở cùng một thời điểm (do số lượng client có thể truy cập vào hệ thống là không có giới hạn).
+
+Các clients sẽ nhận về cùng một `version number` và cùng một `total_reserved`, thế nhưng trong số đó chỉ có DUY NHẤT MỘT CLIENT LÀ THÀNH CÔNG, các clients còn lại sẽ fail ở pha validation. Các fail users sẽ phải retry, và trong những lần retries này cũng sẽ chỉ có duy nhất một client là thành công, cứ thế cứ thế lặp đi lặp lại, kết quả cuối cùng là THÀNH CÔNG nhưng việc phải retries lại nhiều lần sẽ đem lại một trải nghiệm tồi cho user.
+
+**Ưu điểm**:
+
+- Ngăn chặn được việc ứng dụng cập nhật những dữ liệu "cũ".
+- Nếu nhìn từ quan điểm phía DB, ta sẽ KHÔNG LOCK DATABASE thế nhưng việc xử lí conflict version number này lại diễn ra ở phía ứng dụng.
+- Optimisitic locking phát huy tốt khi tần suất "cạnh tranh" dữ liệu thấp, thế nhưng khi nó xảy ra một cách "thường xuyên" thì transaction có thể kết thúc mà không cần phải mất chi phí cho việc quản lí lock.
+
+**Nhược điểm**:
+
+- Hiệu năng rất tồi khi sự "cạnh tranh" về mặt dữ liệu cao.
+
+**Database constraints**: cách tiếp cận này khá "tương đồng" với optimistic locking, nó cài thêm một "ràng buộc" như sau:
+
+```sql
+CONSTRAINT `check_room_count` CHECK((`total_inventory - total_reserved` >= 0))
+```
