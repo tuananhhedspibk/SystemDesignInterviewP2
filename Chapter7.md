@@ -344,3 +344,10 @@ Trong thực tế, khi hệ thống được scale, ta cần nắm rõ **PHẦN 
 
 #### Database sharding
 
+Một cách phổ biến để scale DB đó là sharding, ta sẽ chia DB thành nhiều shard. Lúc này điều cần suy xét đó là cách thức phân bổ dữ liệu. Dựa theo data model cũng như các câu query, ta thấy `hotel_id` nên được lựa chọn làm `distribution key`. Giả sử QPS là 30000. Ta thiết lập 16 shards, do đó QPS cho mỗi shard là `30,000 /  16 = 1,875` - đây là load capacity trong khoảng an toàn đối với mỗi single instance.
+
+<img>
+
+#### Caching
+
+Một điểm khá thú vị của reservation data đó là người dùng chỉ quan tâm đến dữ liệu hiện tại và tương lai mà thôi, do đó với dữ liệu trong quá khứ ta cũng có thể thiết lập TTL. Việc query các dữ liệu cũ này sẽ được thực thi ở một DB khác, Redis là một sự lựa chọn tốt do TTL cũng như LRU eviction policy có thể giúp chúng ta cải thiện mặt bộ nhớ.
