@@ -346,8 +346,98 @@ Trong thực tế, khi hệ thống được scale, ta cần nắm rõ **PHẦN 
 
 Một cách phổ biến để scale DB đó là sharding, ta sẽ chia DB thành nhiều shard. Lúc này điều cần suy xét đó là cách thức phân bổ dữ liệu. Dựa theo data model cũng như các câu query, ta thấy `hotel_id` nên được lựa chọn làm `distribution key`. Giả sử QPS là 30000. Ta thiết lập 16 shards, do đó QPS cho mỗi shard là `30,000 /  16 = 1,875` - đây là load capacity trong khoảng an toàn đối với mỗi single instance.
 
-<img>
+![Screenshot 2024-03-16 at 10 38 10](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/f89b1098-a62c-459d-b164-f7f438c492dc)
 
 #### Caching
 
 Một điểm khá thú vị của reservation data đó là người dùng chỉ quan tâm đến dữ liệu hiện tại và tương lai mà thôi, do đó với dữ liệu trong quá khứ ta cũng có thể thiết lập TTL. Việc query các dữ liệu cũ này sẽ được thực thi ở một DB khác, Redis là một sự lựa chọn tốt do TTL cũng như LRU eviction policy có thể giúp chúng ta cải thiện mặt bộ nhớ.
+
+Nếu loading speed và database scalability trở thành một chủ đề đáng lưu tâm (ví dụ như khi thiết kế các hệ thông quy mô lớn như booking.com hay expedia), chúng ta có thể thêm cache layer phía trên DB và chuyển `check rooom inventory` và `reserve room logic` vào cache layer như hình dưới đây.
+
+![Screenshot 2024-03-16 at 10 44 20](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/53c29115-c953-423e-8760-11f56520115b)
+
+Như hình phía trên, hầu hết các query request sẽ đi đến cache thay vì đi trực tiếp vào DB. Ngoài ra có một điều cũng nên chú ý ở đây đó chính là việc ta vẫn cần kiểm tra lại inventory trong database kể cả khi inventory trong redis có đủ đi chăng nữa, lí do cho việc làm này đó chính là DB chính là nguồn dữ liệu đáng tin cậy nhất.
+
+Tiếp theo ta sẽ đi vào từng thành phần có trong hệ thống caching phía trên.
+
+**Reservation service**: hỗ trợ những API như sau
+
+- Query số lượng phòng còn trống của mỗi khách sạn, room type và date range.
+- Đặt phòng bằng việc thực thi `total_reserved + 1`.
+- Update inventory khi user cancel phòng đã đặt.
+
+**Inventory cache**: mọi thao tác query inventory sẽ được di chuyển đến inventory cache (redis), ở đây chúng ta cần tính toán trước dữ liệu cho cache. Cache là `key-value store` với cấu trúc như sau:
+
+```txt
+key: hotelId_roomTypeId_{date}
+value: số lượng phòng còn trống tương ứng với hotel ID, room type ID và date.
+```
+
+Với hotel reservation system, volume của các thao tác đọc (kiểm tra room inventory) sẽ lớn hơn số lượng tao tác ghi. Và hầu hết các thao tác đọ sẽ được hồi đáp bởi cache.
+
+**Inventory DB**: lưu inventory data master.
+
+**Một vấn đề khác phát sinh từ cache**
+
+Việc thêm cache có thể giúp tăng khả năng mở rộng cũng như thông lượng của hệ thống nhưng cũng sẽ làm phát sinh một vấn đề khác đó là: **ĐẢM BẢO SỰ THỐNG NHẤT VỀ MẶT DỮ LIỆU GIỮA CACHE VÀ DATABASE**.
+
+Khi user đặt phòng, sẽ có 2 thao tác sau được thực hiện:
+
+1. Query room inventory để tìm ra còn phòng trống hay không, câu query này được thực hiện trong **Inventory cache**.
+2. Update inventory data. Dữ liệu đầu tiên sẽ được cập nhật vào DB sau đó sẽ được đồng bộ hoá sang cache (asynchronous), việc cập nhật này có thể được gọi bởi application code. Ta cũng có thể cập nhật bằng việc sử dụng **Change data capture** (CDC). CDC là cơ chế đọc **data changes** từ DB sau đó apply sang các data system khác. Một giải pháp phổ biến cho CDC đó là **Debezium**, sử dụng source connector để đọc data changes từ DB và sau đó apply sang cache (Redis).
+
+Do inventory data được cập nhật ở DB trước nên có thể có khả năng dữ liệu này không được phản ánh lên cache.
+
+Nhưng do DB là nguồn dữ liệu master nên bước validation cuối cùng chắc chắn sẽ đi vào đây. Cùng lấy một ví dụ như sau:
+
+Khi user tiến hành đặt phòng, trên UI dù hiển thị là còn phòng (do đọc dữ liệu từ cache) nhưng khi request đặt phòng đến với main database, do lúc này main database không còn phòng trống nên user sẽ nhận về lỗi. User sau đó refresh lại trang (lúc này dữ liệu của cache đã được đồng bộ từ main DB sang), user sẽ thấy rằng không còn phòng trống nữa.
+
+**Ưu điểm**:
+
+- Giảm DB load do read query sẽ được đưa vào cache layer.
+- Hiệu năng cao. Read queries sẽ rất nhanh do kết quả được trả về từ memory.
+
+**Nhược điểm**:
+
+- Việc maintain tính thống nhất về mặt dữ liệu giữa database và cache không phải dễ dàng. Chúng ta nên suy nghĩ một cách cẩn thận về việc dữ liệu không thống nhất sẽ làm ảnh hưởng thế nào đến UX.
+
+#### Thống nhất về dữ liệu giữa các services
+
+Với monolithic architecture, shared RDB được sử dụng để đảm bảo sự thống nhất về mặt dữ liệu nhưng trong micro-service chúng ta sẽ sử dụng cách tiếp cận hybird khi `Reservation service` sẽ xử lí cả `reservation API` và `inventory API` nên `reservation DB` và `inventory DB` sẽ được chập làm một.
+
+Việc sử dụng RDB sẽ giúp chúng ta tận dụng được thuộc tính ACID để giải quyết **concurrency issue**
+
+![Screenshot 2024-03-16 at 12 17 41](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/3afd4340-9ed2-468e-a471-3d42c35d5ce3)
+
+Thiết kế đơn giản này có thể làm phát sinh các vấn đề về tính thống nhất dữ liệu.
+
+Với monolithic architecture, ta sẽ bao ngoài tất cả các thao tác bằng một transaction duy nhất để đảm bảo tính ACID.
+
+![Screenshot 2024-03-16 at 12 23 03](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/9193dc47-920d-48da-9ca4-5bc0040d5695)
+
+Với micro-service, sẽ có nhiều transactions được chạy trên nhiều DB khác nhau do mỗi service sẽ có cho mình một DB riêng. Do đó chúng ta không thể sử dụng một transaction duy nhất để đảm bảo tính thống nhất về mặt dữ liệu.
+
+Như hình dưới đây
+
+![Screenshot 2024-03-16 at 12 26 57](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/3afade11-fe1d-498f-8ce5-4f8a4953d696)
+
+Nếu thao tác với reservation DB bị fail ta sẽ phải rollback lại `reserved room count` trong inventory DB. Thông thường sẽ chỉ có duy nhất một "happy path" nhưng có rất nhiều failure cases gây ra sự không thống nhất về mặt dữ liệu.
+
+Để chỉ ra sự không thống nhất về mặt dữ liệu, đây là high-level summary của kĩ thuật **industry-proven**
+
+- Two-phase commit (2PC) đây là một protocol của DB được sử dụng để đảm bảo `atomic transaction` trên nhiều nodes (hoặc tất cả các node đều thành công hoặc tất cả các nodes đều failed). Do 2PC là một `blocking protocol` nếu một node fail, nó sẽ block progress cho đến khi node được khôi phục lại. Đây không phải là giải pháp đem lại hiệu năng tốt.
+- Saga - đây là kĩ thuật chuỗi các local transactions. Mỗi transaction sẽ cập nhật DB của mình và publish message để trigger transaction tiếp theo. Nếu fail, saga sẽ thực thi việc rollback các transaction đã được committed trước đó. 2PC hoạt động như một commit đơn, từ đó thực thi ACID transactions trong khi Saga bao gồm nhiều bước.
+
+Việc tìm ra sự không thống nhất về mặt dữ liệu sẽ làm tăng tính phức tạp của hệ thống.
+
+## Bước 4: Tổng kết
+
+Trong phần này chúng ta đã:
+
+1. Thu thập requirement và tính toán back-of-the-envelope estimation
+2. Trong pha High level design chúng ta cũng đã đưa ra API design.
+3. Trong pha Deep dive design chúng ta đã thảo luận về race condition cũng như đưa ra được một vài giải pháp khá tiềm năng:
+
+- Pessimistic locking.
+- Optimistic locking.
+- Database constraints.
