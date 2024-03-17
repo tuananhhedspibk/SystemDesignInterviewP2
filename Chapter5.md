@@ -48,3 +48,34 @@ VD1:
 ![Screenshot 2024-03-17 at 23 27 18](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/f63d5921-c7b5-450c-90a5-e98b1cdfe8df)
 
 VD2:
+
+CPU load trung bình trên toàn bộ các web servers thuộc region `us-west` trong 10 phút trước ? Về mặt lý thuyết chúng ta có thể "kéo về" các thông tin như phía dưới với metric name là `CPU.load` và region là `us-west`.
+
+```txt
+CPU.load host=webserver01,region=us-west 1613707265 50
+CPU.load host=webserver01,region=us-west 1613707265 62
+CPU.load host=webserver02,region=us-west 1613707265 43
+CPU.load host=webserver02,region=us-west 1613707265 64
+...
+
+CPU.load host=webserver01,region=us-west 1613707265 76
+CPU.load host=webserver01,region=us-west 1613707265 83
+```
+
+Lượng CPU load trung bình có thể tính bằng phép tính trung bình các giá trị cuối ở mỗi dòng trên. Format của mỗi dòng trong ví dụ này được gọi là `line protocol`.
+
+Mọi dữ liệu time series đều bao gồm những yếu tố sau:
+
+![Screenshot 2024-03-18 at 7 34 45](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/a4536ab5-8b58-4fc9-b963-8e935e452dac)
+
+### Data access pattern
+
+Trong hình dưới đây, trục y biểu diễn time-series trong khi trục x biểu diễn time.
+
+![Screenshot 2024-03-18 at 7 39 04](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/859db3d1-2fd9-4ce3-9e90-0dbac5c4d7f3)
+
+Write load khá nặng, như đã đề cập trong phần "High-level requirements", khoảng 10 triệu operational metrics được ghi mỗi ngày nên traffic khá nặng về việc ghi (write-heavy).
+
+Read load có thể nhìn nhận như một dạng đồ thị hình sin (lúc nhiều, lúc ít), cả visualization và alerting services đều gửi queries đến DB, tuỳ thuộc vào access patterns của graphs và alerts mà read volume có thể tăng đột biến.
+
+### Data storage system
