@@ -79,3 +79,26 @@ Write load khá nặng, như đã đề cập trong phần "High-level requireme
 Read load có thể nhìn nhận như một dạng đồ thị hình sin (lúc nhiều, lúc ít), cả visualization và alerting services đều gửi queries đến DB, tuỳ thuộc vào access patterns của graphs và alerts mà read volume có thể tăng đột biến.
 
 ### Data storage system
+
+Data storage system chính là trái tim của thiết kế, chúng ta không nhất thiết phải xây dựng một storage system của riêng mình cũng như sử dụng các storage system phổ biến như MySQL.
+
+Sử dụng các DB phổ biến có thể lưu trữ time-series data nhưng nó yêu cầu một **expert-level tuning** cho việc đáp ứng quy mô (scale) của hệ thống.
+
+RDB không hề tối ưu cho việc thực thi các thao tác vận hành với time-series data. VD như việc tính "bước di chuyển trung bình - moving average" trong một "rolling time window" yêu cầu các SQL phức tạp.
+
+Hơn nữa, với tagging hoặc labeling data yêu cầu ta cần đánh index cho từng tag.
+
+Với heavy write thì các RDB phổ biến không đáp ứng tốt về mặt hiệu năng.
+
+Còn với NoSQL, ta có thể kể ra một vài công cụ như Cassandra, Bigtable - như những công cụ phổ biến cho việc xử lí time-series data. Thế nhưng để tối ưu cho việc query các time-series data, cần phải xây dựng một scalable schema cho chúng.
+
+Có rất nhiều các storage system hỗ trợ:
+
+- Tối ưu cho time-series data.
+- Sử dụng ít server hơn cho việc xử lí cùng một lượng dữ liệu.
+- Custom query interface được thiết kế riêng cho việc phân tích time-series data (dễ hơn SQL rất nhiều).
+- Hỗ trợ data retention và data aggregation.
+
+Một vài ví dụ về time-series DB như sau:
+
+`OpenTSDB` - nó dựa trên Hadoop và HBase hoặc `Timestream` của Amazon. Ngoài ra còn hai time-series DB nổi tiếng là `InfluxDB` và `Prometheus`.
