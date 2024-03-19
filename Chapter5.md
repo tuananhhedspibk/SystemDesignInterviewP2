@@ -159,3 +159,13 @@ Hình dưới đây là minh hoạ cho pull model một cách chi tiết hơn.
 1. Metric collector kéo các configure metadata về service endpoints về từ Service Discovery. Metadata này sẽ bao gồm 　 **pulling interval**, **IP addresses**, **timeout**, **retry parameters**.
 2. Metric collector pull metrics data thông qua một pre-defined HTTP endpoint.
 3. Optional, metrics collector có thể đăng kí `change event notification` với Service Discovery để nhận các thông báo khi service endpoints có sự thay đổi. Ngoài ra, metrics collector có thể poll endpoint changes một cách định kì.
+
+Ở quy mô của chúng ta, một metrics collector sẽ không có khả năng xử lí cả nghìn servers, thay vào đó chúng ta bắt buộc phải sử dụng metrics collector poll để xử lí.lí
+
+Một vấn đề khác khi có nhiều metrics collector đó là việc chúng sẽ cùng pull dữ liệu từ một nguồn và tạo ra các metrics data giống hệt nhau. Do đó cần có một cơ chế điều phối giữa các instances để tránh điều đó.đó
+
+Một giải pháp khá hay ở đây đó là đưa mỗi collector vào một khoảng (range) trong consistent hash ring sau đó map các server với các collector bằng tên của chúng trong hash ring. Điều này đảm bảo **một metrics source server sẽ được xử lí bởi duy nhất một collector**.
+
+![Screenshot 2024-03-20 at 8 32 26](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/a209d177-1247-4dab-828c-8090fa0cdc43)
+
+Như ở hình trên chúng ta thấy collector 2 sẽ đảm nhận 2 servers đó là `S1` và `S5`
