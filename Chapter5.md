@@ -112,7 +112,7 @@ VD: InfluxDB xây dựng index trên label với mục đích tăng khả năng 
 
 ### High-level design
 
-<img>
+![Screenshot 2024-03-19 at 23 52 45](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/9ad49c2e-18ce-41bf-9416-dd467d773e2f)
 
 - **Metrics source**. Đây có thể là application server, SQL database, message queue.
 - **Metrics collector**. "Thu gom metrics data" và ghi nó lên time-series DB.
@@ -134,7 +134,7 @@ Trong phần này chúng ta sẽ tập trung vào:
 
 ### Metrics collection
 
-<img>
+![Screenshot 2024-03-19 at 23 53 08](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/37d4602d-1091-41c3-856b-f4d4eddd004c)
 
 #### Pull vs push models
 
@@ -142,7 +142,7 @@ Có 2 cách để thu thập metrics data đó là **pull** và **push**, mỗi 
 
 **Pull model**
 
-<img>
+![Screenshot 2024-03-19 at 23 57 03](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/692437fa-2397-4da8-8fa6-097ef3ce428b)
 
 Trong cách tiếp cận này, metrics collector cần phải biết danh sách các end points để kéo dữ liệu về. Có một cách làm khá "ngây ngô" đó là lưu file chứa thông tin về DNS/IP của các service endpoint trên "metrics collector" servers. Cách làm này khá đơn giản nhưng sẽ khó để maintaince khi quy mô hệ thống trở nên lớn hơn. Thực tế là khi số lượng server tăng, giảm hoặc bị thay thế xảy ra là khá thường xuyên.
 
@@ -150,12 +150,12 @@ Thế nhưng trong thực tế có những `Service Discovery` với độ tin c
 
 Service Discovery bao gồm các configuration rules về việc khi nào sẽ thu tập metrics data và thu thập ở đâu.
 
-<img>
+![Screenshot 2024-03-19 at 23 57 47](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/da490c21-cb2f-4369-8345-b82535fa0e0b)
 
 Hình dưới đây là minh hoạ cho pull model một cách chi tiết hơn.
 
-<img>
+![Screenshot 2024-03-19 at 23 59 00](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/8ae976f4-9250-4b28-a076-9aaf3cd7078f)
 
-1. Metric collector kéo các configure metadata về service endpoints về từ Service Discovery. Metadata này sẽ bao gồm　 **pulling interval**, **IP addresses**, **timeout**, **retry parameters**.
+1. Metric collector kéo các configure metadata về service endpoints về từ Service Discovery. Metadata này sẽ bao gồm 　 **pulling interval**, **IP addresses**, **timeout**, **retry parameters**.
 2. Metric collector pull metrics data thông qua một pre-defined HTTP endpoint.
 3. Optional, metrics collector có thể đăng kí `change event notification` với Service Discovery để nhận các thông báo khi service endpoints có sự thay đổi. Ngoài ra, metrics collector có thể poll endpoint changes một cách định kì.
