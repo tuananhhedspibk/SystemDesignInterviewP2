@@ -102,3 +102,60 @@ Có rất nhiều các storage system hỗ trợ:
 Một vài ví dụ về time-series DB như sau:
 
 `OpenTSDB` - nó dựa trên Hadoop và HBase hoặc `Timestream` của Amazon. Ngoài ra còn hai time-series DB nổi tiếng là `InfluxDB` và `Prometheus`.
+
+Về cơ bản metric-data sẽ có dạng time-series. Một tính năng mạnh khác của time-series DB đó là khả năng:
+
+- Kết tập dữ liệu
+- Phân tích một lượng lớn time-series data bằng labels (hoặc tags)
+
+VD: InfluxDB xây dựng index trên label với mục đích tăng khả năng tìm kiếm trên time-series data bằng labels nhanh hơn, đây là một tính năng rất quan trọng đối với việc visualization mà thực sự rất khó để xây dựng với các DB thông thường khác.
+
+### High-level design
+
+<img>
+
+- **Metrics source**. Đây có thể là application server, SQL database, message queue.
+- **Metrics collector**. "Thu gom metrics data" và ghi nó lên time-series DB.
+- **Time-series database**. Lưu metrics data dưới dạng time-series. Cung cấp các custom query interfaces cho mục đích phân tích và kết tập một lượng lớn dữ liệu dưới dạng time-series. Ngoài ra nó còn maintaince indexes trên labels để tăng tốc độ tìm kiếm bằng labels.
+- **Query service**. Giúp việc query dữ liệu từ Time-series DB trở nên dễ dàng hơn, service này cũng có thể được thay thế bởi query interface của bản thân time-series DB.
+- **Alerting system**. Gửi alert notification đến các alerting destinations.
+- **Visualization System**. Show metrics dưới các dạng graph/charts khác nhau.
+
+## Bước 3: Deep-dive design
+
+Trong phần này chúng ta sẽ tập trung vào:
+
+- Metrics collection
+- Scaling metrics transmission pipeline
+- Query service
+- Storage layer
+- Alerting system
+- Visualization system
+
+### Metrics collection
+
+<img>
+
+#### Pull vs push models
+
+Có 2 cách để thu thập metrics data đó là **pull** và **push**, mỗi một cách làm sẽ có những ưu điểm của riêng nó.
+
+**Pull model**
+
+<img>
+
+Trong cách tiếp cận này, metrics collector cần phải biết danh sách các end points để kéo dữ liệu về. Có một cách làm khá "ngây ngô" đó là lưu file chứa thông tin về DNS/IP của các service endpoint trên "metrics collector" servers. Cách làm này khá đơn giản nhưng sẽ khó để maintaince khi quy mô hệ thống trở nên lớn hơn. Thực tế là khi số lượng server tăng, giảm hoặc bị thay thế xảy ra là khá thường xuyên.
+
+Thế nhưng trong thực tế có những `Service Discovery` với độ tin cậy cao như `ZooKeeper` hay `etcd` sẽ là giải pháp phù hợp cho chúng ta.
+
+Service Discovery bao gồm các configuration rules về việc khi nào sẽ thu tập metrics data và thu thập ở đâu.
+
+<img>
+
+Hình dưới đây là minh hoạ cho pull model một cách chi tiết hơn.
+
+<img>
+
+1. Metric collector kéo các configure metadata về service endpoints về từ Service Discovery. Metadata này sẽ bao gồm　 **pulling interval**, **IP addresses**, **timeout**, **retry parameters**.
+2. Metric collector pull metrics data thông qua một pre-defined HTTP endpoint.
+3. Optional, metrics collector có thể đăng kí `change event notification` với Service Discovery để nhận các thông báo khi service endpoints có sự thay đổi. Ngoài ra, metrics collector có thể poll endpoint changes một cách định kì.
