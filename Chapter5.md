@@ -169,3 +169,21 @@ Một giải pháp khá hay ở đây đó là đưa mỗi collector vào một 
 ![Screenshot 2024-03-20 at 8 32 26](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/a209d177-1247-4dab-828c-8090fa0cdc43)
 
 Như ở hình trên chúng ta thấy collector 2 sẽ đảm nhận 2 servers đó là `S1` và `S5`
+
+**Push model**:
+
+Như hình dưới đây ta thấy các metrics source sẽ gửi metrics data đến metrics collector.
+
+![Screenshot 2024-03-20 at 10 00 40](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/a078dc22-8263-4a41-8eca-7d97e1106a11)
+
+Trong push model, `collection agent` thường được cài đặt trong các server đang được monitored, các agents này có thể là `long-running software` - với nhiệm vụ thu thập metrics từ service chạy trên servers và gửi nó cho các collectors một cách định kì.
+
+Các collection agent có thể "kết tập" các metrics dưới local cuả mình trước khi gửi chúng cho metric collectors.
+
+"Kết tập - aggregation" là một cách hữu hiệu trong việc giảm đi lượng dữ liệu gửi cho metrics collector.
+
+Trong trường hợp push traffic cao và metrics collector reject push, agent sẽ giữ một buffer data nhỏ dưới local của mình (thường là lưu trong ổ đĩa) và gửi lại cho collector sau đó. Tuy nhiên trong trường hợp agent thuộc về một server nằm trong auto-scaling group (sẽ đến một lúc nào đó server này sẽ bị kill). Khi server bị kill thì dữ liệu buffer dưới local của nó cũng sẽ mất đi và metrics collector sẽ bị chậm đi về mặt dữ liệu.
+
+Để tránh tình trạng metrics collector bị chậm về mặt dữ liệu, metrics collector nên được đặt trong một auto-scaling cluster với load balancer ở phía trước nó như hình dưới đây. Việc scale up hay scale down của cluster sẽ dựa theo CPU load của metric collector server.
+
+![Screenshot 2024-03-20 at 10 13 24](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/4c068290-4ff1-4c84-bb28-702092f12cdb)
