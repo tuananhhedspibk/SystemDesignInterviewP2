@@ -187,3 +187,21 @@ Trong trường hợp push traffic cao và metrics collector reject push, agent 
 Để tránh tình trạng metrics collector bị chậm về mặt dữ liệu, metrics collector nên được đặt trong một auto-scaling cluster với load balancer ở phía trước nó như hình dưới đây. Việc scale up hay scale down của cluster sẽ dựa theo CPU load của metric collector server.
 
 ![Screenshot 2024-03-20 at 10 13 24](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/4c068290-4ff1-4c84-bb28-702092f12cdb)
+
+**Pull hay push ?**
+
+Vậy thì mô hình nào sẽ phù hợp hơn cho chúng ta, trên thực tế sẽ là không có một mô hình nào là tối ưu hoàn toàn cả, tất cả sẽ phải phụ thuộc vào tình huống mà chúng ta gặp phải.
+
+- Ví dụ về pull architecture bao gồm Prometheus.
+- Ví dụ về push architecture bao gồm Amazon Cloudwatch và Graphite.
+
+> Biết được ưu, nhược điểm của mỗi cách tiếp cận quan trọng hơn rất nhiều so với việc tìm ra mô hình "chiến thắng"
+
+Dưới đây là một vài ưu nhược điểm cần cân nhắc giữa các models.
+
+- Dễ dàng debug: **Pull** win
+- Health check: **Pull** win
+
+#### Scale metrics transmission pipeline
+
+![Screenshot 2024-03-20 at 22 42 00](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/e02acec3-b4ea-475a-836f-d0c59ca04e99)
