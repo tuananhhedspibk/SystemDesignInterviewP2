@@ -300,3 +300,57 @@ Như ở ví dụ trên, giá trị `1610087371` và `1610087381` chỉ khác nh
 - Các giá trị delta
 
 Cụ thể là: `1610087371`, `10`, `10`, `9`, `11`.
+
+##### Downsampling
+
+Là quá trình convert dữ liệu từ độ phân giải cao xuống độ phân giải thấp để giảm đi dung lượng bộ nhớ sử dụng. Do dữ liệu của chúng ta chỉ có "hạn sử dụng" là 1 năm nên chúng ta có thể downsample những dữ liệu cũ. Ví dụ: chúng ta có thể để cho engineer và data scientist đưa ra các nguyên tắc khác nhau cho các metrics khác nhau như sau:
+
+- Retention: 7 ngày, không sampling.
+- Retention: 30 ngày, downsample xuống `1 min resolution`.
+- Retention: 1 năm, downsample xuống `1 hour resolution`.
+
+Cùng lấy một ví dụ cụ thể khác, khi chúng ta kết tập dữ liệu theo độ phân giải 10-giây, chúng ta sẽ có:
+
+![Screenshot 2024-03-22 at 7 32 08](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/8ced7600-c7d1-4aa0-8b95-6a09830622c9)
+
+Nếu kết tập với độ phân giải 30-giây, chúng ta sẽ có:
+
+![Screenshot 2024-03-22 at 7 33 00](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/ef5fa5c3-b6bd-41ad-aa70-1f6243738f96)
+
+##### Cold storage
+
+Cold storage được sử dụng cho các `inactive data`, giá thành cho cold storage cũng khá thấp.
+
+#### Alerting system
+
+![Screenshot 2024-03-22 at 7 39 36](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/a6db8f39-dd08-4fba-9482-c90d7aab4958)
+
+Alert work flow sẽ hoạt động như sau:
+
+1. Load config files vào cache servers. Các rules sẽ được định nghĩa trong file config này (thường dưới YAML format). Ví dụ:
+
+```YAML
+- name: instance_down
+rules:
+
+# Alert for any instances that is unreachable for >5 minutes
+- alert: instance_down
+    expr: up == 0
+    for: 5m
+    labels:
+    severity: page
+```
+
+2. Alert Manager fetch config từ cache.
+3. Dựa theo config rules, alert manager sẽ gọi query service theo những khoảng thời gian định trước. Nếu giá trị vượt quá một threshold được định nghĩa trước, alert event sẽ được tạo. Alert manager có trách nhiệm thực hiện những việc sau:
+
+- Filter, merge, dedupe alerts. Dưới đây là ví dụ về việc merge alerts được trigger bên trong một instance trong một khoảng thời gian ngắn.
+
+![Screenshot 2024-03-22 at 7 57 41](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/7575bbf6-617a-4937-ac4c-ae83436e77b0)
+
+- Access control. Để đảm bảo vấn đề về bảo mật cũng nhưng tránh các human error, ta nên chỉ cho phép một vài người có thẩm quyền nhất định truy cập vào alert management operations.
+- Retry. Alert manager kiểm tra alert state và đảm bảo rằng notification sẽ được gửi đi ít nhất là 1 lần.
+
+4. Aler store là một key-value DB như là Cassandra, sẽ lưu state (inactive, pending, firing, resolved) của mọi alerts. Nó đảm bảo notification sẽ được gửi ít nhất một lần.
+5. Insert alert vào kafka.
+6. Alert consumers pull alert events từ kafka.
