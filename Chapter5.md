@@ -205,3 +205,37 @@ Dưới đây là một vài ưu nhược điểm cần cân nhắc giữa các 
 #### Scale metrics transmission pipeline
 
 ![Screenshot 2024-03-20 at 22 42 00](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/e02acec3-b4ea-475a-836f-d0c59ca04e99)
+
+#### Nơi có thể diễn ra aggregations
+
+Aggregation có thể xảy ra ở nhiều nơi khác nhau:
+
+- Tại collection agent (client-side)
+- Ingestion pipeline
+- Query side
+
+  **Collection agent**. Collection agent được cài đặt phía client chỉ hỗ trợ các aggregation logic đơn giản. Ví dụ: aggregate counter mỗi phút trước khi gửi cho metrics collector.
+
+  **Ingestion pipeline**. Để kết tập dữ liệu trước khi ghi vào storage, ta thường cần một streaming process engine như Flink. Write volume sẽ chỉ giảm đi chỉ khi ta lưu dữ liệu đã tính toán vào trong DB. Và chúng ta sẽ mất đi tính "khả chuyển" của dữ liệu vì chúng ta không còn lưu raw data.
+
+  **Query Side**. Raw data có thể được kết tập theo từng khoảng thời gian nhất định. Sẽ không có data loss với cách tiếp cận này nhưng tốc độ query có thể sẽ bị chậm đi vì kết quả query sẽ được tính ở thời điểm query và chạy lại với toàn bộ dataset.
+
+#### Query Service
+
+Query service bao gồm cluster của các query servers, các servers này sẽ nhận requests từ visualization hoặc alerting system　 và query trực tiếp đến time-series DB. Query service sẽ giúp decouple time-series DB với client (visualization hoặc alerting system).
+
+Việc này giúp ta có thể dễ dàng thay đổi time-series DB hoặc visualization, alerting system nếu cần thiết.
+
+**Cache layer**
+
+Để giảm tải cho time-series DB và query service, chúng ta sẽ thêm cache servers để lưu query results như hình dưới đây.
+
+<img>
+
+**Trường hợp với query service***
+
+Trên thực tế sẽ có những time-series DB hỗ trợ các query interface mạnh nên cũng không nhất thiết phải thêm query service vào hệ thống.
+
+**Time-series database query language**
+
+Các metrics monitoring system như Prometheus hay InfluxDB không sử dụng SQL mà có query language của riêng mình. Một lí do chính ở đây đó là việc xây dựng SQL query cho time-series data là không hề đơn giản.
