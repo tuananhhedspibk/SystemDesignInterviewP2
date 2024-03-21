@@ -140,7 +140,7 @@ Trong phần này chúng ta sẽ tập trung vào:
 
 Có 2 cách để thu thập metrics data đó là **pull** và **push**, mỗi một cách làm sẽ có những ưu điểm của riêng nó.
 
-**Pull model**
+##### Pull model
 
 ![Screenshot 2024-03-19 at 23 57 03](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/692437fa-2397-4da8-8fa6-097ef3ce428b)
 
@@ -170,7 +170,7 @@ Một giải pháp khá hay ở đây đó là đưa mỗi collector vào một 
 
 Như ở hình trên chúng ta thấy collector 2 sẽ đảm nhận 2 servers đó là `S1` và `S5`
 
-**Push model**:
+##### Push model
 
 Như hình dưới đây ta thấy các metrics source sẽ gửi metrics data đến metrics collector.
 
@@ -206,7 +206,34 @@ Dưới đây là một vài ưu nhược điểm cần cân nhắc giữa các 
 
 ![Screenshot 2024-03-20 at 22 42 00](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/e02acec3-b4ea-475a-836f-d0c59ca04e99)
 
-#### Nơi có thể diễn ra aggregations
+Chúng ta cùng thử đào sâu vào `metrics collector` và `time-series DB`. Dù là push hay pull model thì metrics collector là một cluster servers, cluster này sẽ nhận về một số lượng lớn dữ liệu. Dù là push hay pull model thì ta cũng cần phải thiết lập auto-scaling để đảm bảo có đủ collector instances.
+
+Thế nhưng rủi ro bị mất dữ liệu nếu time-series database không hoạt động là hoàn toàn có thể xảy ra. Để giải quyết vấn đề này chúng ta sẽ sử dụng `queueing component` như hình dưới đây.
+
+![Screenshot 2024-03-21 at 8 11 06](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/186c86f7-9fab-4eaa-9ab6-77faa73438bf)
+
+Trong thiết kế này, metrics collector sẽ gửi metrics data đến queueing system như Kafka. Consumers hoặc streaming processing services như Âpche Storm, Flink hay Spark sau đó sẽ xử lí và push dữ liệu đến time-series database. Cách tiếp cận này có một vài ưu điểm như sau:
+
+- Kafka được sử dụng như một distributed messaging platform với độ tin cậy và khả năng mở rộng cao.
+- Giúp decouple data collection và data processing services.
+- Do dữ liệu được lưu tạm thời ở Kafka nên tránh được tình trạng mất dữ liệu khi database không hoạt động.
+
+#### Scale thông qua Kafka
+
+Có một vài cách mà ở đó chúng ta có thể tận dụng cơ chế phân vùng (partition) sẵn có của Kafka để scale hệ thống của chúng ta.
+
+- Thiết lập số lượng partitions dựa theo yêu cầu về thông lượng.
+- Phân vùng metrics data theo metrics names để từ đó consumers có thể kết tập dữ liệu theo metrics names.
+- Phân vùng metrics data sâu hơn nữa theo tags/labels.
+- Phân loại (categorize) và phân cấp độ ưu tiên (prioritize) metrics để có thể xử lí các metrics quan trọng trước.
+
+![Screenshot 2024-03-21 at 8 22 07](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/8c4d9e97-35a3-4cf9-8289-7e4318c0499b)
+
+##### Thay thế Kafka
+
+Maintaince một hệ thống như Kafka trong môi trường product là một thách thức không hề nhỏ. Có những monitoring system lớn không hề sử dụng intermediate queue, ví dụ như Facebook Gorilla in-memory time-series DB là một ví dụ điển hình, nó được thiết kế để đảm bảo việc tính sẵn có cao cho thao tác ghi. Đây có thể sẽ là một cuộc tranh luận về tính tin cậy với các hệ thống sử dụng intermediate queue như Kafka.
+
+##### Những nơi mà Aggregation có thể xảy ra
 
 Aggregation có thể xảy ra ở nhiều nơi khác nhau:
 
@@ -222,20 +249,54 @@ Aggregation có thể xảy ra ở nhiều nơi khác nhau:
 
 #### Query Service
 
-Query service bao gồm cluster của các query servers, các servers này sẽ nhận requests từ visualization hoặc alerting system　 và query trực tiếp đến time-series DB. Query service sẽ giúp decouple time-series DB với client (visualization hoặc alerting system).
+Query service bao gồm cluster của các query servers, các servers này sẽ nhận requests từ visualization hoặc alerting system 　 và query trực tiếp đến time-series DB. Query service sẽ giúp decouple time-series DB với client (visualization hoặc alerting system).
 
 Việc này giúp ta có thể dễ dàng thay đổi time-series DB hoặc visualization, alerting system nếu cần thiết.
 
-**Cache layer**
+##### Cache layer
 
 Để giảm tải cho time-series DB và query service, chúng ta sẽ thêm cache servers để lưu query results như hình dưới đây.
 
-<img>
+![Screenshot 2024-03-21 at 22 30 25](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/2a9d0889-9fbf-4b59-b9df-f1ee2ac72c3a)
 
-**Trường hợp với query service***
+##### Trường hợp với query service
 
 Trên thực tế sẽ có những time-series DB hỗ trợ các query interface mạnh nên cũng không nhất thiết phải thêm query service vào hệ thống.
 
-**Time-series database query language**
+##### Time-series database query language
 
-Các metrics monitoring system như Prometheus hay InfluxDB không sử dụng SQL mà có query language của riêng mình. Một lí do chính ở đây đó là việc xây dựng SQL query cho time-series data là không hề đơn giản.
+Các metrics monitoring system như Prometheus hay InfluxDB không sử dụng SQL mà có query language của riêng mình. Một lí do chính ở đây đó là việc xây dựng SQL query cho time-series data là không hề đơn giản. Ta lấy ví dụ với việc tính trung bình hàm mũ bằng SQL sẽ như sau:
+
+![IMG_2725](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/590dba0c-57bb-4077-bb2b-ca1fbc48acf6)
+
+Trong khi đó với Flux, một ngôn ngữ được tối ưu hoá cho time-series analysis (được sử dụng trong InfluxDB), việc tính toán sẽ như sau:
+
+```js
+from(db:"telegraf")
+  |> range(start:-1h)
+  |> filter(fn: (r) => r._measurement == "foo")
+  |> exponentialMovingAverage(size:-10s)
+```
+
+#### Storage layer
+
+##### Chọn time-series database một cách cẩn thận
+
+Theo như nghiên cứu của Facebook, ít nhất 85% tổng số queries tới `operational data store` là để thu thập dữ liệu trong vòng 26 giờ vừa qua. Nếu chúng ta sử dụng một time-series database đáp ứng được điều kiện trên, hiệu năng của toàn bộ hệ thống sẽ được cải thiện một cách đáng kể.
+
+##### Tối ưu hoá không gian nhớ
+
+Do lượng metric data được lưu là rất lớn, dưới đây là một vài giải pháp đối phó cho vấn đề này.
+
+**Mã hoá và nén dữ liệu:**
+
+Việc mã hoá và nén giúp giảm đi kích thước của dữ liệu. Dưới đây là một ví dụ đơn giản:
+
+![Screenshot 2024-03-21 at 23 17 41](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/e17bb4ef-5081-4982-9cab-792e7835ea46)
+
+Như ở ví dụ trên, giá trị `1610087371` và `1610087381` chỉ khác nhau có 10s (chỉ cần 4 bit để biểu diễn sự khác nhau này), thay vì biểu diễn full timestamp với 32 bits, ta chỉ cần lưu delta giữa các giá trị là đủ. Do đó, tập giá trị cần lưu sẽ bao gồm:
+
+- Giá trị cơ bản nhỏ nhất
+- Các giá trị delta
+
+Cụ thể là: `1610087371`, `10`, `10`, `9`, `11`.
