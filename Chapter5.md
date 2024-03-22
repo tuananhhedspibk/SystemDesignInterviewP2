@@ -354,3 +354,30 @@ rules:
 4. Aler store là một key-value DB như là Cassandra, sẽ lưu state (inactive, pending, firing, resolved) của mọi alerts. Nó đảm bảo notification sẽ được gửi ít nhất một lần.
 5. Insert alert vào kafka.
 6. Alert consumers pull alert events từ kafka.
+7. Alert consumers xử lí alert events từ Kafka và gửi notifications đến các channels như email, text message, PagerDuty hoặc HTTP endpoints.
+
+##### Alerting system - build vs buy
+
+Trong thực tế có nhiều alerting system có khả năng tích hợp tốt với các time-series DB cũng như các notification channel như email hay PagerDuty. Trong quá trình phỏng vấn cho vị trí senior việc buy hay mua hệ thống có sẵn hoàn toàn phụ thuộc vào quyết định của bạn.
+
+##### Visualization system
+
+Được built phía trên cùng của data layer. Các metrics có thể được show trên dashboard.
+
+<img>
+
+Việc tự mình xây dựng một visualization system không phải là một điều dễ dàng, hiện có rất nhiều hệ thống có sẵn như Grafana có khả năng tich hợp tốt với các time-series DB phổ biến.
+
+## Bước 4 - Tổng kết
+
+Trong phần này chúng ta đã nói về:
+
+- Pull vs push model.
+- Utiliza Kafka để scale hệ thống.
+- Chọn đúng time-series DB.
+- Sử dụng downsampling để giảm data size.
+- Build vs buy options cho alerting và visualizing system.
+
+  Đây chính là thiết kế cuối cùng của chúng ta.
+
+  <img>
