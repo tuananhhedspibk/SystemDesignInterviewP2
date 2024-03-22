@@ -364,8 +364,6 @@ Trong thực tế có nhiều alerting system có khả năng tích hợp tốt 
 
 Được built phía trên cùng của data layer. Các metrics có thể được show trên dashboard.
 
-<img>
-
 Việc tự mình xây dựng một visualization system không phải là một điều dễ dàng, hiện có rất nhiều hệ thống có sẵn như Grafana có khả năng tich hợp tốt với các time-series DB phổ biến.
 
 ## Bước 4 - Tổng kết
@@ -378,6 +376,6 @@ Trong phần này chúng ta đã nói về:
 - Sử dụng downsampling để giảm data size.
 - Build vs buy options cho alerting và visualizing system.
 
-  Đây chính là thiết kế cuối cùng của chúng ta.
+Đây chính là thiết kế cuối cùng của chúng ta.
 
-  <img>
+![Screenshot 2024-03-22 at 22 46 11](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/907bf215-c306-4eff-a644-d0b7cb837ff8)
