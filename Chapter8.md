@@ -77,3 +77,10 @@ Các mail servers truyền thống thường chỉ hoạt động trên một se
 #### Kiến trúc mail server truyền thống
 
 ![Screenshot 2024-03-24 at 12 04 59](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/4cb5f821-b0ff-45e3-aefe-927046a401d0)
+
+1. User A vào email client, gửi một email đến Outlook mail server. Giao thức tương tác giữa Outlook mail server và client sẽ là SMTP.
+2. Outlook mail server sẽ queries DNS để tìm địa chỉ SMTP server của nơi nhận. Trong trường hợp này là Gmail SMTP server. Sau đó nó sẽ chuyển email sang cho Gmail mail server, giao thức tương tác giữa 2 email servers này cũng là SMTP.
+3. Gmail server lưu email.
+4. Gmail client sẽ lấy về các emails mới thông qua IMAP/POP server giúp user B nhìn thấy email từ user A.
+
+### Storage
