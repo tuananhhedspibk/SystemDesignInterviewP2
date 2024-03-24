@@ -50,8 +50,30 @@ Qua việc ước tính như trên, ta có thể thấy rằng lượng dữ li�
 
 #### Email protocols
 
-**SMTP - Simple Mail Transfer Protocol**. Là phương thức dùng để **gửi** email từ email servers.
+**SMTP - Simple Mail Transfer Protocol**. Là giao thức dùng để **gửi** email từ email servers.
 
-**POP - Post Office Protocol**. Là phương thức dùng để **nhận email** từ email servers. Sau khi email được downloaded, chúng sẽ được xoá trên server và do đó ta chỉ có thể truy cập được email từ duy nhất một thiết bị mà thôi. POP yêu cầu client download toàn bộ email do đó sẽ làm tăng thời gian download đặc biệt với các emails có attachment lớn.
+**POP - Post Office Protocol**. Là giao thức dùng để **nhận email** từ email servers. Sau khi email được downloaded, chúng sẽ được xoá trên server và do đó ta chỉ có thể truy cập được email từ duy nhất một thiết bị mà thôi. POP yêu cầu client download toàn bộ email do đó sẽ làm tăng thời gian download đặc biệt với các emails có attachment lớn.
 
-**IMAP - Internet Mail Access Protocol**.
+**IMAP - Internet Mail Access Protocol**. Đây cũng là một giao thức nhận email. IMAP chỉ download email khi chúng ta click vào và nó không xoá email trên server, từ đó cho phép chúng ta có thể truy cập vào email trên nhiều thiết bị. Giao thức này cũng hoạt động tốt khi kết nối bị chậm do nó chỉ download email header cho đến khi email được mở ra.
+
+**HTTPS**. Không phải là mail protocol nhưng cho phép người dùng kết nối đến web-based email.
+
+#### DNS
+
+DNS server được sử dụng để tìm `mail exchanger record - MX record`
+
+![IMG_2765](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/de9f9a1e-dd26-428a-84e1-11976c1607bf)
+
+Nếu gõ dns lookup cho `gmail.com` bằng command line, kết quả nhận được sẽ như hình trên. Mail server với priority thấp sẽ được ưu tiên tham chiếu hơn.
+
+#### Attachment
+
+Thường được mã hoá bằng Base64-encoding.
+
+### Mail servers truyền thống
+
+Các mail servers truyền thống thường chỉ hoạt động trên một server mà thôi, ngoài ra chúng chỉ phục vụ một số lượng user hữu hạn.
+
+#### Kiến trúc mail server truyền thống
+
+![Screenshot 2024-03-24 at 12 04 59](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/4cb5f821-b0ff-45e3-aefe-927046a401d0)
