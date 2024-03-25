@@ -84,3 +84,7 @@ Các mail servers truyền thống thường chỉ hoạt động trên một se
 4. Gmail client sẽ lấy về các emails mới thông qua IMAP/POP server giúp user B nhìn thấy email từ user A.
 
 ### Storage
+
+Ở các mail server truyền thống, emails được lưu trong local file directories và mỗi mail sẽ được lưu trong file với tên riêng. Maildir là cách quen thuộc để lưu mail
+
+![Screenshot 2024-03-25 at 23 07 57](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/da6943d5-cda9-4850-b428-1b91f0bd513f)
