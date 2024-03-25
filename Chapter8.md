@@ -88,3 +88,68 @@ Các mail servers truyền thống thường chỉ hoạt động trên một se
 Ở các mail server truyền thống, emails được lưu trong local file directories và mỗi mail sẽ được lưu trong file với tên riêng. Maildir là cách quen thuộc để lưu mail
 
 ![Screenshot 2024-03-25 at 23 07 57](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/da6943d5-cda9-4850-b428-1b91f0bd513f)
+
+File directories hoạt động tốt khi số lượng user nhỏ, thế nhưng nếu số lượng email lên đến cả tỉ thì đây sẽ là một giải pháp rất tồi.tồi
+
+Do số lượng file tăng cũng như cấu trúc file trở nên phức tạp hơn nên dẫn đến tình trạng disk I/O bị bottleneck. Bản thân việc sử dụng local directories cũng không đáp ứng được yêu cầu về tính sẵn có và độ tin cậy do ổ đĩa có thể bị quá tải và dẫn đến việc server bị sập.
+
+Tính năng email đã phát triển hơn rất nhiều, thay vì chỉ đơn thuần là text-based giờ đây ta còn có multimedia hay threading, ... Không những thế những email protocols cũ như POP, IMAP, SMTP không được thiết kế để hỗ trợ cả tỉ users.
+
+### Distributed mail servers
+
+Distributed mail servers được thiết kế để hỗ trợ các use-cases hiện đại và giải quyết vấn đề về scaling cũng như khả năng phục hồi của hệ thống.
+
+#### Email APIs
+
+Email APIs có thể rất khác với các mail clients khác nhau cũng như các vị trí khác nhau trong vòng đời của email. Ví dụ:
+
+- SMTP/ POP/ IMAP APIs cho native mobile clients.
+- Tương tác SMTP giữa sender server và receiver server.
+- RESTful API trên HTTP cho việc tương tác giữa web-based email applications.
+
+Trong phạm vi cuốn sách này, chúng ta chỉ tập trung vào HTTP protocol.
+
+##### 1. Endpoint: POST /v1/messages
+
+Gửi message đến người nhận trong `To`, `Cc` hoặc `Bcc` headers.
+
+##### 2. Endpoint: GET /v1/folders
+
+Trả về toàn bộ các folders của email account.
+
+Response:
+
+```json
+[
+  {
+    id: "string"      // Unique folder identifier
+    name: "string"    // Tên của folder
+                      // Default folders có thể là All, Archive, Drát, Flagged, Junk, Sent, Trash
+    user_id: "string" // Account owner
+  }
+]
+```
+
+##### 3. Endpoint: GET /v1/folers/{:folder_id}/messages
+
+Trả về mọi messages trong foler (đây là phiên bản đơn giản nhưng trong thực tế cần có pagination).
+
+##### 4. Endpoint: GET /v1/messages/{:message_id}
+
+Trả về thông tin chi tiết liên quan đến message.
+
+Messages là core building blocks của email app, nó bao gồm các thông tin về người gửi, nhận, message subject, body, ...
+
+#### Distributed mail server architecture
+
+Setup một email server để nó chạy được với một số lượng hữu hạn users không phải là một việc khó thế nhưng việc setup trên nhiều máy lại phức tạp hơn nhiều do chúng ta phải cân nhắc đến yếu tố đồng bộ hoá dữ liệu giữa các servers. Ngoài ra việc lọc mail spam cũng rất khó.
+
+![Screenshot 2024-03-26 at 8 11 01](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/d8b0936b-72d2-4a69-86a6-1cacebf06d7f)
+
+Hãy cùng xem xét chi tiết về các component trong thiết kế trên.
+
+**Webmail**. User sử dụng browser để gửi và nhận email.
+
+**Web servers**. Public-facing request/ response services, dùng cho các tính năng như login, signup, ... Trong thiết kế của chúng ta, mọi email API requests (gửi mail, load mail folders, load mails trong foler) đều đi qua web server.
+
+**Real-time servers**. Có chức năng pushing email update đến cho client real-time. Real-time servers là stateful servers do chúng cần maintain các persistent connection.
