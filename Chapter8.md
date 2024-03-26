@@ -173,3 +173,21 @@ Về cơ bản sau khi lắp ghép các components phía trên lại, chúng ta 
 #### Flow gửi email
 
 ![Screenshot 2024-03-26 at 22 57 29](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/696239f5-a548-4590-9a8b-74d0b48f288e)
+
+1. User gửi email, request sẽ đi đến Load Balancer.
+2. Load balancer đảm bảo việc số lượng request không vượt quá rate limit và điều hướng traffic đến web server.server
+3. Web server sẽ đảm nhiệm:
+
+- Email validation. Mỗi một email đến sẽ được kiểm tra dựa trên các `pre-defined rules` như email size limit.
+- Kiểm tra xem domain của địa chỉ người nhận có giống người gửi hay không. Nếu giống thì web server chắc chắn email không có virus và cũng không phải là spam email. Nếu vậy, email sẽ được thêm vào "Sent Folder" của người gửi và "Inbox Folder" của người nhận. Người nhận sau đó có thể lấy về qua RESTful API và không cần đi đến bước 4.
+
+4. Message queues
+
+   4.1. Nếu email validate pass, email data sẽ được đưa đến `outgoing queue`, nếu attachment đi kèm với email quá lớn thì nó attachment sẽ được lưu trong `Object storage` và tham chiếu của object attachtment sẽ được đưa vào message queue trên.
+   4.2. Nếu email validate failed, email sẽ được đưa vào `error queue`.
+
+5. `SMTP outgoing worker` sẽ kéo messages từ `outgoing queue` và đảm bảo việc chúng là spam, virus free.
+6. Outgoing email được lưu trong "Sent Folder" nằm trong storage layer.
+7. `SMTP outgoing worker` gửi mail đến cho mail server của người nhận.
+
+Các messages trong outgoing queue bao gồm mọi meta-data cần thiết cho việc tạo email.
