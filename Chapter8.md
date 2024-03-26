@@ -190,4 +190,4 @@ Về cơ bản sau khi lắp ghép các components phía trên lại, chúng ta 
 6. Outgoing email được lưu trong "Sent Folder" nằm trong storage layer.
 7. `SMTP outgoing worker` gửi mail đến cho mail server của người nhận.
 
-Các messages trong outgoing queue bao gồm mọi meta-data cần thiết cho việc tạo email.
+Các messages trong outgoing queue bao gồm mọi meta-data cần thiết cho việc tạo email. Distributed message queue là thành phần quan trọng cho phép xử lí email một cách bất đồng bộ. Qua đó ta có thể decoupling `SMTP outgoing worker` và `web servers`. Từ đó chúng ta có thể scale SMTP outgoing workers một các độc lập.
