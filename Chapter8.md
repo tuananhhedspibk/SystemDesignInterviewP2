@@ -152,4 +152,24 @@ Hãy cùng xem xét chi tiết về các component trong thiết kế trên.
 
 **Web servers**. Public-facing request/ response services, dùng cho các tính năng như login, signup, ... Trong thiết kế của chúng ta, mọi email API requests (gửi mail, load mail folders, load mails trong foler) đều đi qua web server.
 
-**Real-time servers**. Có chức năng pushing email update đến cho client real-time. Real-time servers là stateful servers do chúng cần maintain các persistent connection.
+**Real-time servers**. Có chức năng pushing email update đến cho client real-time. Real-time servers là stateful servers do chúng cần maintain các persistent connection. Để hỗ trợ real-time communication chúng ta có một vài options như long polling hoặc Websocket. Websocket là một giải pháp kinh điển nhưng nó có một nhược điểm đó là "xung đột" với browser. Một giải pháp khả quan nhất đó là thiết lập Websocket connection khi có thể và sử dụng long-polling như một giải pháp dự phòng.
+
+**Metadata DB**. Đây là DB lưu mail meta-data bao gồm mail subjet, body từ người gửi cũng như đến người nhận.
+
+**Attachment store**. Chúng ta lựa chọn S3 do S3 là một storage infrastructure có khả năng scale tốt cũng như phù hợp để lưu các files có kích cỡ lớn như images, videos, ... Attachment có thể có dung lượng lên đến 25MB. Một lựa chọn khác với NoSQL như Cassandra sẽ không phù hợp vì 2 lí do sau:
+
+- Ngay cả khi Cassandra hỗ trợ blob type (về mặt lí thuyết dung lượng lên đến 2GB) nhưng trong thực tế thì giới hạn là < 1MB.
+- Một vấn đề khác với Cassandra đo là khi đưa attachments vào nó, ta không thể sử dụng row cache như attachments chiếm một lượng lớn không gian nhớ.
+
+**Distributed cache**. Do các emails gần đây thường được load đi load lại bởi client, việc caching các emails gần đây sẽ là một giải pháp giúp cải thiện load time. Chúng ta có thể sử dụng Redis ở đây vì nó cung cấp nhiều tính năng như lists và khả năng scale dễ dàng.
+
+**Search store**. Là một distributed document store. Nó sử dụng cấu trúc dữ liệu `inverted index` - hỗ trợ full-text search tốc độ cao.
+
+Về cơ bản sau khi lắp ghép các components phía trên lại, chúng ta có thể xây dựng được 2 workflows chính như sau:
+
+- Flow gửi email.
+- Flow nhận email.
+
+#### Flow gửi email
+
+![Screenshot 2024-03-26 at 22 57 29](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/696239f5-a548-4590-9a8b-74d0b48f288e)
