@@ -191,3 +191,25 @@ Về cơ bản sau khi lắp ghép các components phía trên lại, chúng ta 
 7. `SMTP outgoing worker` gửi mail đến cho mail server của người nhận.
 
 Các messages trong outgoing queue bao gồm mọi meta-data cần thiết cho việc tạo email. Distributed message queue là thành phần quan trọng cho phép xử lí email một cách bất đồng bộ. Qua đó ta có thể decoupling `SMTP outgoing worker` và `web servers`. Từ đó chúng ta có thể scale SMTP outgoing workers một các độc lập.
+
+Chúng ta luôn xem xét size của outgoing queue rất kĩ, nếu có bất kì emails nào stuck trong đó, chúng ta cần tìm ra nguyên nhân. Dưới đây là một vài khả năng có thể xảy ra:
+
+- Mail server của phía người nhận không hoạt động. Trong tình huống này, cách giải quyết duy nhất đó là retry. Retry với tần số theo số mũ (exponential backoff) là một sự lựa chọn phổ biến.
+- Không đủ consumer để gửi mail. Trong tình huống này, ta cần tăng số lượng consumer để giảm thời gian xử lí.
+
+#### Flow nhận email
+
+Hình dưới đây mô tả flow nhận email.
+
+1. Email đến sẽ được gửi đến SMTP load balancer.
+2. Load balancer sẽ phân bổ traffic đến các SMTP servers. Email acceptance policy được thiết lập và áp dụng ngay tại SMTP-connection level. Ví dụ như việc ta có thể lọc các invalid email để không phải tốn thời gian xử lí.
+3. Nếu attachment quá lớn để đưa vào queue, ta có thể đưa nó vào attachment store (S3).
+4. Email được đưa vào queue, việc làm này giúp decoupling queue worker và SMTP server, để từ đó ta có thể scale chúng một cách độc lập. Hơn nữa queue sẽ hoạt động giống như một buffer trong trường hợp số lượng email "bùng nổ".
+5. Mail processing servers đảm nhận khá nhiều tác vụ như: lọc spam emails, ngăn chặn virus, ...
+6. Mail data được lưu trong Mail storage, cache, object data store.
+7. Nếu người nhận đang online, mail sẽ được push thẳng lên real-time servers.
+8. Real-time servers là các WebSocket servers cho phép client nhận email mới một cách real-time.
+9. Với offline user, email sẽ được lưu trong storage layer, sau đó web-client sẽ lấy về các emails mới nhất thông qua RESTful API.
+10. Web server pull các emails mới nhất và trả về cho phía client.
+
+## Bước 3: Deep-dive design
