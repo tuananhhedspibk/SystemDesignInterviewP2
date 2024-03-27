@@ -213,3 +213,91 @@ Hình dưới đây mô tả flow nhận email.
 10. Web server pull các emails mới nhất và trả về cho phía client.
 
 ## Bước 3: Deep-dive design
+
+Trong phần này chúng ta sẽ đi sâu vào một vài components như sau:
+
+- Metadata DB.
+- Search
+- Deliveribility
+- Khả năng mở rộng
+
+### Metadata DB
+
+#### Đặc chưng của email metadata
+
+- Email headers thường có kích cỡ nhỏ và hay được truy cập.
+- Email body có thể nhỏ hoặc lớn nhưng chỉ được đọc một lần duy nhất.
+- Các thao tác với email như đánh dấu đọc, fetching chỉ được thực hiện bởi user sở hữu email mà thôi.
+- User thường chỉ đọc các dữ liệu gần đây, trên thực tế user chỉ đọc các email trong vòng 16 ngày gần nhất.
+- Dữ liệu cần có độ tin cậy cao và KHÔNG ĐƯỢC PHÉP MẤT.
+
+#### Chọn đúng DB
+
+Với quy mô cỡ Gmail hoặc Outlook, DB system thường được custom-made để giảm đi input output per second (IOPS), đây có thể trở thành một trong những điều kiện quan trọng của hệ thống. Việc chọn DB phù hợp không phải đơn giản, đôi khi chúng ta nên xem xét các điều kiện trên các bảng trước khi đưa ra sự lựa chọn DB phù hợp nhất.
+
+- `Relational DB`. Với DB kiểu này ta có thể đánh indexes trên mail header và body để tăng tốc độ truy vấn. RDB được tối ưu hoá cho data chunks cỡ nhỏ chứ không phải cỡ lớn. Một email điển hình thường có kích cỡ vài KB và có thể vượt quá cả trăm KB nếu có HTML bên trong, với data cỡ lớn, ta có thể sử dụng BLOB type nhưng search queries trên BLOB data type lại không phát huy tác dụng. Nên do đó các sự lựa chọn như MySQL hay PostgreSQL không phải là những sự lựa chọn tốt.
+- `Distributed Object Storage`. Một giải pháp khác đó là lưu trong cloud storage như S3, đây sẽ là một giải pháp backup tốt nhưng lại không đáp ứng được các tính năng như search emails by keywords, ...
+- `No SQL` là một lựa chọn tốt, bản thân Google sử dụng BigTable nhưng bản thân công nghệ này chưa được public nên cách thức email searching được triển khai vẫn là một ẩn số. Cassandra có thể được sử dụng ở đây nhưng độ phổ biến không cao.
+
+Với các mail service có quy mô lớn, chúng ta thường sẽ phải customized database, nhưng trong phạm vi của một buổi phỏng vấn, việc thiết kế một distributed database là điều không thể, do đó ta chỉ cần liệt kê ra những đặc điểm cần có sau của DB là được:
+
+- Single column có thể là single-digit của MB.
+- Tính thống nhất về dữ liệu cao.
+- Được thiết kế để giảm disk I/O.
+- Tính sẵn có cao và fault-tolerant.
+- Dễ dàng tạo backup.
+
+#### Data model
+
+Một cách để lưu dữ liệu đó là sử dụng `user_id` như partition key, nên dữ liệu của một user sẽ được lưu trong một shard.
+
+Một nhược điểm của cách làm này đó là messages không được shared giữa các users khác nhau.
+
+Trong lần này, primary key sẽ là tổ hợp của `partition_key` & `clustering_key`.
+
+- `partition_key`　 có nhiệm vụ chính là phân bổ dữ liệu vào các nodes, điều chúng ta muốn ở đây đó là việc dữ liệu được phân bổ một cách đồng đều.
+- `clustering_key` có nhiệm vụ sắp xếp dữ liệu trong cùng một partition.
+
+Email service cần hỗ trợ những queries như sau ở data layer.
+
+- Query 1: Lấy về tất cả các folders thuộc về cùng một user.
+- Query 2: Hiển thị toàn bộ email trong một folder.
+- Query 3: Create/ Delete/ Get một email cụ thể.
+- Query 4: Lấy toàn bộ các read hoặc unread email.
+- Bonus point: lấy về conversation threads.
+
+##### Query 1: Lấy về tất cả các folders thuộc về cùng một user
+
+`user_id` được sử dụng làm partition key, do đó mọi folders thuộc về cùng một user sẽ nằm trong cùng một partition.
+
+<img>
+
+##### Query 2: Hiển thị toàn bộ email trong một folder
+
+Khi user load emails trong inbox, các emails mới nhất sẽ được hiển thị lên trước. Để lưu các emails của một user vào cùng một folder, ta cần đến composite key `<user_id, folder_id>`.
+
+Một cột khác cũng được sử dụng ở đây đó là `email_id` (data type là `TimeUUID` sẽ được sử dụng như `clustering_key`　cho mục đích sắp xếp).
+
+<img>
+
+##### Query 3: Create/ Delete/ Get một email cụ thể
+
+Trong phần này chúng ta chỉ xét đến việc lấy về thông tin chi tiết của email. Thiết kế table sẽ như hình dưới đây:
+
+<img>
+
+```sql
+SELECT * FROM emails_by_user WHERE email_id = 123;
+```
+
+##### Query 4: Lấy toàn bộ các read hoặc unread email
+
+Nếu domain model của chúng ta được thiết kế cho RDB, query lấy về các read email sẽ như sau:
+
+```sql
+SELECT * FROM emails_by_folder
+WHERE user_id = <user_id> AND folder_id = <folder_id> AND is_read = true
+ORDER BY email_id;
+```
+
+Câu query truy vấn unread email cũng hoàn toàn tương tự ngoại trừ việc đổi `is_read = false`.
