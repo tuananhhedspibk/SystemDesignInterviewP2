@@ -201,6 +201,8 @@ Chúng ta luôn xem xét size của outgoing queue rất kĩ, nếu có bất k�
 
 Hình dưới đây mô tả flow nhận email.
 
+![Screenshot 2024-03-27 at 22 03 17](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/cf3b6f4f-1261-4b91-9b21-5d11497eac12)
+
 1. Email đến sẽ được gửi đến SMTP load balancer.
 2. Load balancer sẽ phân bổ traffic đến các SMTP servers. Email acceptance policy được thiết lập và áp dụng ngay tại SMTP-connection level. Ví dụ như việc ta có thể lọc các invalid email để không phải tốn thời gian xử lí.
 3. Nếu attachment quá lớn để đưa vào queue, ta có thể đưa nó vào attachment store (S3).
@@ -270,21 +272,21 @@ Email service cần hỗ trợ những queries như sau ở data layer.
 
 `user_id` được sử dụng làm partition key, do đó mọi folders thuộc về cùng một user sẽ nằm trong cùng một partition.
 
-<img>
+![Screenshot 2024-03-27 at 22 07 31](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/6ff59c8d-7002-4ae6-bc68-ce6f836c3bdd)
 
 ##### Query 2: Hiển thị toàn bộ email trong một folder
 
 Khi user load emails trong inbox, các emails mới nhất sẽ được hiển thị lên trước. Để lưu các emails của một user vào cùng một folder, ta cần đến composite key `<user_id, folder_id>`.
 
-Một cột khác cũng được sử dụng ở đây đó là `email_id` (data type là `TimeUUID` sẽ được sử dụng như `clustering_key`　cho mục đích sắp xếp).
+Một cột khác cũng được sử dụng ở đây đó là `email_id` (data type là `TimeUUID` sẽ được sử dụng như `clustering_key`　 cho mục đích sắp xếp).
 
-<img>
+![Screenshot 2024-03-27 at 22 09 07](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/bd463a09-5483-423b-96ee-1dd73ad34d63)
 
 ##### Query 3: Create/ Delete/ Get một email cụ thể
 
 Trong phần này chúng ta chỉ xét đến việc lấy về thông tin chi tiết của email. Thiết kế table sẽ như hình dưới đây:
 
-<img>
+![Screenshot 2024-03-27 at 22 11 23](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/7076d02b-2003-4c6a-ae66-65685772ef58)
 
 ```sql
 SELECT * FROM emails_by_user WHERE email_id = 123;
