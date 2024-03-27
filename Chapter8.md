@@ -303,3 +303,64 @@ ORDER BY email_id;
 ```
 
 Câu query truy vấn unread email cũng hoàn toàn tương tự ngoại trừ việc đổi `is_read = false`.
+
+Data mode cuả chúng ta được thiết kế để hướng đến NoSQL. NoSQL DB thường chỉ hỗ trợ queries trên partition và cluster keys. Do `is_read` trong bảng `emails_by_folder` không thuộc vào 2 nhóm keys nói trên nên DB sẽ reject câu query này.
+
+Một cách làm đơn giản khác đó là lấy về toàn bộ dữ liệu trong folder, sau đó tiến hành lọc trong app. Cách làm này có thể hoạt động với các ứng dụng nhỏ nhưng với quy mô lớn, cách làm này hoạt động không hề tốt.
+
+Vấn đề này sẽ được giải quyết bằng việc "phi chuẩn hoá" trong NoSQL. Để hỗ trợ read/ unread queries, chúng ta sẽ "phi chuẩn hoá" bảng `emails_by_folder` thành 2 bảng con:
+
+- `read_emails`: lưu toàn bộ email ở trạng thái `read`.
+- `unread_emails`: lưu toàn bộ email ở trạng thái `unread`.
+
+Để đánh dấu một email từ `UNREAD` thành `READ`, email sẽ được xoá khỏi bảng `unread_emails` và sau đó được tạo mới trong bảng `read_emails`.
+
+Để lấy về toàn bộ các unread emails trong một folder, ta có thể thực hiện câu query như sau:
+
+```SQL
+SELECT * FROM unread_emails
+WHERE user_id = <user_id> AND folder_id = <folder_id>
+ORDER BY email_id;
+```
+
+![Screenshot 2024-03-28 at 7 53 51](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/7dd2eaf2-fa37-48cd-8a19-e76ad7b256ea)
+
+Việc phi chuẩn hoá như trên là một giải pháp khá phổ biến, có thể nó sẽ làm cho app code trở nên phức tạp và khó maintaince hơn nhưng nó sẽ giúp cải thiện hiệu năng đọc của các câu queries.
+
+##### Bonus point: conversation threads
+
+Threads là một tính năng được hỗ trợ bởi nhiều email clients. Nó sẽ nhóm các email replies thành một nhóm tương ứng với message gốc.
+
+Tính năng này cho phép user có thể quét toàn bộ emails tương ứng với một cuộc hội thoại. Thông thường, thread được triển khai bằng việc sử dụng giải thuật như JWZ. Giải thuật này sẽ có logic chính như sau:
+
+Một email header thông thường sẽ có 3 fields chính như sau:
+
+```JSON
+{
+  "headers": {
+    "Message-Id": "<7912d8-d1d12d12-12d12d12@gmail.com>", // message Id, được gen bởi client khi gửi message
+    "In-Reply-To": "<Cad1029d1d1@gmail.com>",  // parent message Id
+    "References": ["<7912d8-d1d12d12-12d12d12@gmail.com>"]  // danh sách các message Ids liên quan đến thread
+  }
+}
+```
+
+Với cấu trúc như trên, email client có thể "tái tạo" lại mail conversations từ các messages nếu mọi mesages trong reply chain được preloaded.
+
+#### Đánh đổi về tính thống nhất
+
+Một vấn đề cần phải đánh đổi phổ biến với các distributed database dựa trên replication đó là `tính thống nhất` và `tính sẵn có`.
+
+Sự chính xác là vô cùng quan trọng với email system. Theo như thiết kế chúng ta muốn bất kì mailbox nào cũng phải có tính "duy nhất", trong trường hợp gặp lỗi (failover), mailbox không thể truy cập bởi client. Các thao tác sync/ update sẽ được dừng lại cho đến khi nào failover kết thúc.
+
+Đây chính là việc chúng ta đánh đổi tính thống nhất về mặt dữ liệu thay cho tính sẵn có của hệ thống.
+
+#### Email deliverability
+
+Việc setup và gửi email không hề khó. Điều khó nhất ở đây đó là làm cho emails thực sự đến được với người nhận. Nếu emails được gửi đến spam folder thì khả năng rất cao là user sẽ không đọc nó.
+
+Email spam là một vấn đề lớn. Trong thực tế, có hơn 50% email sẽ được gửi đến spam folder.
+
+Nếu bạn setup một email server cho riêng mình thì khả năng cao là emails gửi từ server của bạn sẽ bị cho vào spam (do không có danh tiếng). Có những yếu tố sau là cần cân nhắc nếu muốn cải thiện `email deliverability`.
+
+- **Dedicated IPs**
