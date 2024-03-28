@@ -427,3 +427,37 @@ Khi email mới đến, nó sẽ được đưa vào Level 0 (memory), khi dữ 
 Ngoài ra ta thấy rằng dữ liệu liên quan đến email thường không đổi mà chỉ có thông tin liên quan đến folder là thay đổi tuỳ theo filter rules. Do đó ta có thể chia chúng thành 2 sections, các request liên quan đến folder change sẽ được đưa vào một nhóm và chúng ta chỉ thay đổi folder chứ không thay đổi email data.
 
 ![Screenshot 2024-03-28 at 23 12 41](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/03ac9be6-4a1a-4d81-b4a3-7779a36b57a9)
+
+Cùng so sánh giữa options nêu trên, chúng ta thấy rằng:
+
+- **Khả năng mở rộng**. Việc custom search sẽ cho nhiều sự lựa chọn hơn.
+- **Độ phức tạp hệ thống**. Với Elasticsearch, ta cần maintaince `datastore` và `Elasticsearch`. Với custom search thì chỉ có 1 system mà thôi.
+- **Tính thống nhất về dữ liệu**. Với Elasticsearch do dữ liệu được lưu tại datastore và Elasticsearch nên việc đảm bảo tính thống nhất sẽ có hơn so với custom search khi chỉ có một datastore duy nhất.
+- **Khả năng mất dữ liệu**. Cả 2 options đều không bị mất dữ liệu.
+- **Thời gian dev**. Dễ dàng tích hợp Elasticsearch, với custom search thì sẽ phức tạp hơn.
+
+Một kinh nghiệm trong thực tế cho thấy, các hệ thống nhỏ thường sẽ sử dụng Elasticsearch do khả năng dễ tích hợp cũng như không tốn quá nhiều thời gian dev. Với các hệ thống lớn ta cần một team dev riêng để phát triển cũng như maintain search engine của riêng mình.
+
+Với quy mô hệ thống như Gmail, Outlook sẽ tốt hơn khi có native search bên trong DB.
+
+#### Khả năng mở rộng và tính sẵn có
+
+Chúng ta luôn muốn hệ thống có khả năng scale theo chiều ngang.
+
+Để tăng tính sẵn có, dữ liệu sẽ được sao lưu lên nhiều data centers. User sẽ tương tác với email server gần họ nhất. Do quá trình phân vùng mạng (network partition), users có thể truy cập messages từ nhiều data centers khác nhau.
+
+![Screenshot 2024-03-29 at 8 10 30](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/17dd40e8-bb13-48f2-a5fc-f561137e327d)
+
+## Bước 4: Tổng kết
+
+Trong chương này chúng ta đã thiết kế kiến trúc cho email servers với quy mô lớn qua các bước như:
+
+1. Tính toán, ước chừng quy mô hệ thống.
+2. High-level design: thiết kế email API cũng như phân tích việc không thể áp dụng các mail protocol truyền thống.
+3. Trong phần deep-dive design: tập trung vào metadata DB, email deliverability, search, khả năng mở rộng.
+
+Nếu có thời gian, chúng ta có thể bàn thêm về:
+
+- Khả năng chịu lỗi (Fault tolerance): các vấn đề như node failures, network issues, event delays, ...
+- Bảo mật, do bản thân email sẽ bao gồm các thông tin nhạy cảm. Gmail cung cấp một vài tính năng như safe browsing hay email encryption.
+- Tối ưu hoá. Với các email có attachment, thay vì lưu trên nhiều object store (S3), ta có thể kiểm tra để chỉ cần lưu trữ ở một nơi là đủ.
