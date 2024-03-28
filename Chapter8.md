@@ -368,13 +368,13 @@ Nếu bạn setup một email server cho riêng mình thì khả năng cao là e
 - **Email Sender Reputation**. Việc tận dụng các hệ thống email nổi tiếng như Office365 hay Gmail hoặc Yahoo Mail sẽ giúp mail của chúng ta ít bị cho vào spam folder hơn. Bản thân việc sử dụng Amazon Simple Email Service (SES) cũng sẽ mất 2 - 6 tuần để "làm nóng" địa chỉ IP của bạn.
 - **Nhanh chóng ban các spammer**. Spammers nên bị ban sớm nhất có thể để tránh tình trạng ảnh hưởng đến email reputation.
 - **Xử lí feedback**. Việc setup một feedback loop cho ISP để có thể giữ cho tỉ lệ phàn nàn (complaint rate) thấp và tỉ lệ ban các spammer account cao là rất quan trọng. Nếu email không đến được với người nhận hoặc khi user phàn nàn, một trong những outcome sau đây sẽ xảy ra.
-    - `Hard bounce`. Email bị reject bởi ISP, nguyên nhân là vì địa chỉ nhận không hợp lệ.
-    - `Soft bounce`. Email không đến được với người nhận vì một vài lí do mang tính chất tạm thời (VD: ISPs quá tải).
-    - `Complaint`. Điều này có nghĩa là người nhận ấn vào "report spam" button.
+  - `Hard bounce`. Email bị reject bởi ISP, nguyên nhân là vì địa chỉ nhận không hợp lệ.
+  - `Soft bounce`. Email không đến được với người nhận vì một vài lí do mang tính chất tạm thời (VD: ISPs quá tải).
+  - `Complaint`. Điều này có nghĩa là người nhận ấn vào "report spam" button.
 
 Hình dưới đây cho thấy quá trình thu thập và xử lí bounce/ complaint. Chúng ta sẽ sử dụng các queues riêng cho `hard bounce`, `soft bounce`, `complaint`.
 
-<img>
+![Screenshot 2024-03-28 at 22 32 01](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/b071852a-5441-470c-88f4-b6e032205186)
 
 - **Email authentication**. Để cho emails có thể hoạt động, ngoài việc có kiến thức về domain thì việc có một mối liên hệ tốt với ISPs cũng rất quan trọng.
 
@@ -386,6 +386,11 @@ Email searching chỉ hoạt động khi user ấn search button. Do đó search
 
 Bảng dưới đây sẽ so sánh sự khác biệt giữa Google search và Email search.
 
+|               | Scope              | Sorting                                                               | Accuracy                                                                           |
+| ------------- | ------------------ | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Google Search | Toàn bộ internet   | Sắp xếp theo mức độ liên quan của các kết quả                         | Indexing thường mất thời gian nên có vài items sẽ không được hiển thị ngay lập tức |
+| Email Search  | Email box của user | Sắp xếp theo các thuộc tính như thời gian, có attachment, unread, ... | Indexing thường đạt mức độ real-time và kết quả phải chính xác                     |
+
 Để triển khai email search chúng ta có 2 cách:
 
 - Sử dụng Elasticsearch.
@@ -393,3 +398,32 @@ Bảng dưới đây sẽ so sánh sự khác biệt giữa Google search và Em
 
 ##### Option 1: Elasticsearch
 
+High-level design cho email search sử dụng ElasticSearch sẽ giống như hình dưới đây
+
+![Screenshot 2024-03-28 at 22 41 04](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/514f059b-d2b2-40af-9558-78f0fd4c69aa)
+
+Do queries thường được thực hiện trên email server của user nên chúng ta có thể nhóm các documents vào cùng một node bằng cách sử dụng `user_id` như là partition key.
+
+Khi user nhấn vào search button, user sẽ phải chờ cho đến khi có kết quả trả về, nên do đó thao tác tìm kiếm ở đây là synchronous.
+
+Với các events như `send email`, `receive email`, `delete email` được trigger, quá trình reindexing sẽ được diễn ra và được đảm nhận bởi các offline jobs. Kafka được sử dụng ở đây như một cách để decouple các `services trigger reindexing` với các `services thực thi reindexing`.
+
+ElasticSearch là một search-engine database rất phổ biến và nó hỗ trợ full-text search cho email rất tốt. Một vấn đề ở đây đó là việc giữ cho primary email được lưu trữ một cách đồng bộ.
+
+##### Option 2: Custom search solution
+
+Các hệ thống email providers lớn thường tự mình dev các search engine nhằm đáp ứng yêu cầu của bản thân hệ thống.
+
+Việc thiết kế một search-engine không hề đơn giản. Ở đây chúng ta chỉ tập trung vào vấn đề `bottle neck` - một vấn đề mà rất nhiều search engine gặp phải.
+
+Như trong phần `back-of-the-envelopre` dữ liệu metadata và attachment hàng ngày của chúng ta có thể lên đến cả PB, trong khi đó một email account có thể có hơn 1 triệu mail. Nên bottle-neck với index server thường nằm ở disk I/O
+
+Quá trình xây dựng index thường khá nặng về write. Một chiến lược hay ho ở đây đó là sử dụng `Log-Structured Merge-Tree (LSM)`.
+
+LSM Tree là core data-structure phía sau các DB như Bigtable, Cassandra.
+
+Khi email mới đến, nó sẽ được đưa vào Level 0 (memory), khi dữ liệu ở mỗi level đạt tới ngưỡng trên, chúng sẽ được merged lại và đưa lên các level cao hơn.
+
+Ngoài ra ta thấy rằng dữ liệu liên quan đến email thường không đổi mà chỉ có thông tin liên quan đến folder là thay đổi tuỳ theo filter rules. Do đó ta có thể chia chúng thành 2 sections, các request liên quan đến folder change sẽ được đưa vào một nhóm và chúng ta chỉ thay đổi folder chứ không thay đổi email data.
+
+![Screenshot 2024-03-28 at 23 12 41](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/03ac9be6-4a1a-4d81-b4a3-7779a36b57a9)
