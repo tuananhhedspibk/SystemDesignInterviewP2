@@ -363,4 +363,33 @@ Email spam là một vấn đề lớn. Trong thực tế, có hơn 50% email s�
 
 Nếu bạn setup một email server cho riêng mình thì khả năng cao là emails gửi từ server của bạn sẽ bị cho vào spam (do không có danh tiếng). Có những yếu tố sau là cần cân nhắc nếu muốn cải thiện `email deliverability`.
 
-- **Dedicated IPs**
+- **Dedicated IPs**. Nên có các dedicated IPs vì bản thân các email service cũng sẽ rất hạn chế việc accept các địa chỉ IP lạ, chưa từng xuất hiện trong lịch sử.
+- **Classify Emails**. Gửi các loại emails khác nhau từ các địa chỉ khác nhau. Nguyên nhân là bởi nếu ta gửi cùng một loại email (marketing email) từ cùng một server thì ISPs sẽ xem đó như các emails khuyến mại, tiếp thị, ...
+- **Email Sender Reputation**. Việc tận dụng các hệ thống email nổi tiếng như Office365 hay Gmail hoặc Yahoo Mail sẽ giúp mail của chúng ta ít bị cho vào spam folder hơn. Bản thân việc sử dụng Amazon Simple Email Service (SES) cũng sẽ mất 2 - 6 tuần để "làm nóng" địa chỉ IP của bạn.
+- **Nhanh chóng ban các spammer**. Spammers nên bị ban sớm nhất có thể để tránh tình trạng ảnh hưởng đến email reputation.
+- **Xử lí feedback**. Việc setup một feedback loop cho ISP để có thể giữ cho tỉ lệ phàn nàn (complaint rate) thấp và tỉ lệ ban các spammer account cao là rất quan trọng. Nếu email không đến được với người nhận hoặc khi user phàn nàn, một trong những outcome sau đây sẽ xảy ra.
+    - `Hard bounce`. Email bị reject bởi ISP, nguyên nhân là vì địa chỉ nhận không hợp lệ.
+    - `Soft bounce`. Email không đến được với người nhận vì một vài lí do mang tính chất tạm thời (VD: ISPs quá tải).
+    - `Complaint`. Điều này có nghĩa là người nhận ấn vào "report spam" button.
+
+Hình dưới đây cho thấy quá trình thu thập và xử lí bounce/ complaint. Chúng ta sẽ sử dụng các queues riêng cho `hard bounce`, `soft bounce`, `complaint`.
+
+<img>
+
+- **Email authentication**. Để cho emails có thể hoạt động, ngoài việc có kiến thức về domain thì việc có một mối liên hệ tốt với ISPs cũng rất quan trọng.
+
+#### Search
+
+Thông thường việc tìm kiếm mail sẽ dựa theo các key words xuất hiện trong subject hoặc body. Ngoài ra khi email được gửi, được đọc hoặc bị xoá, ta cần tiến hành reindexing.
+
+Email searching chỉ hoạt động khi user ấn search button. Do đó search feature sẽ thiên về write hơn là read.
+
+Bảng dưới đây sẽ so sánh sự khác biệt giữa Google search và Email search.
+
+Để triển khai email search chúng ta có 2 cách:
+
+- Sử dụng Elasticsearch.
+- Sử dụng native search có sẵn trong data-store.
+
+##### Option 1: Elasticsearch
+
