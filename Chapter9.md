@@ -28,13 +28,44 @@ Object storage lưu dữ liệu dưới dạng object theo cấu trúc "flat". V
 
 ### So sánh
 
-<img>
+![Screenshot 2024-03-29 at 22 27 53](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/b3c4e204-2355-43eb-8cd7-cb0c2ebc29ad)
 
-<img>
+|                 | Block storage                                           | File storage                    | Object storage                                             |
+| --------------- | ------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------- |
+| Mutable content | Y                                                       | Y                               | N (hỗ trợ object versioning, không hỗ trợ update in-place) |
+| Giá             | Cao                                                     | Vừa -> Cao                      | Thấp                                                       |
+| Hiệu năng       | Cao                                                     | Cao                             | Vừa                                                        |
+| Tính thống nhất | Mạnh                                                    | Mạnh                            | Mạnh                                                       |
+| Thích hợp với   | Virtual Machines, ứng dụng yêu cầu hiệu năng cao như DB | File system access thông thường | Binary Data, unstructured data                             |
 
 ### Các thuật ngữ
 
 Để thiết kế một hệ thống lưu trữ tương tự như S3, ta cần hiểu được các thuật ngữ quan trọng trong một hệ thống lưu trữ.
 
 - **Bucket**. Logical container dùng để lưu các objects, tên của nó là **global unique**, để upload dữ liệu lên S3 đầu tiên ta cần tạo bucket.
-- **Object**
+- **Object**. Là một phần dữ liệu lưu trữ trong bucket. Nó bao gồm object data (payload) và metadata (name-value pairs mô tả object).
+- **Versioning**. Tính năng hỗ trợ lưu trữ nhiều phiên bản của object trong cùng bucket. Thường được enabled ở bucket-level. Tính năng này cho phép chúng ta có thể recover objects đã bị xoá hoặc bị ghi đè không như ý muốn.
+- **URI**
+- **Service-level agreement (SLA)**. Như một cam kết giữa service provider với client. Ví dụ Amazon S3 cung cấp SLA như sau:
+  - Độ bền: 99.9999999% (Multiple AZ).
+  - Tính sẵn có: 99.9%
+
+## Bước 1: Hiểu vấn đề và phạm vi thiết kế
+
+Yêu cầu về chức năng của hệ thống:
+
+- Hỗ trợ các tính năng: Tạo bucket, upload & download object, object versioning, liệt kê các objects trong một bucket.
+- Lưu trữ các object lớn (dung lượng lên đến vài GBs) và một số lượng lớn các object nhỏ (dung lượng vài chục KBs).
+- Lượng dữ liệu lưu trữ trong 1 năm là 100PB.
+- Data durability: 99.9999%, Service availability: 99.99%.
+
+Yêu cầu "phi tính năng":
+
+- 100PB data.
+- Độ bền dữ liệu là 6 số chín (99.9999%).
+- Tính sẵn có của service là 4 số chín (99.99%).
+- Giảm chi phí lưu trữ cũng như tối ưu hoá về hiệu năng và độ tin cậy.
+
+### Back-of-the-envelope estimation
+
+Object storage thường có bottlenecks hoặc là do dung lượng đĩa hoặc do disk IO trên s (IOPS).
