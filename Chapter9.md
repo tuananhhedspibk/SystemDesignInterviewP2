@@ -69,3 +69,32 @@ Yêu cầu "phi tính năng":
 ### Back-of-the-envelope estimation
 
 Object storage thường có bottlenecks hoặc là do dung lượng đĩa hoặc do disk IO trên s (IOPS).
+
+**Disk capacity**. Cùng giả sử các objects sẽ phân bổ như sau:
+
+- 20% là object nhỏ (< 1MB).
+- 60% là medium size (1MB ~ 64MB).
+- 20% là object lớn (> 64MB).
+
+**IOPS**. Giả sử một ổ cứng có khả năng thực hiện 100 ~ 150 bước nhảy trên giây (100 ~ 150 IOPS).
+
+Với các giả thiết như trên, ta có thể ước chừng được tổng số objects mà hệ thống có thể lưu trữ. Để đơn giản phép tính, ta sẽ coi kích cỡ từng loại object như sau (0.5MB cho object nhỏ, 32MB cho medium size, 200MB cho object lớn). Với tỉ lệ 40% bộ nhớ được sử dụng ta có:
+
+```txt
+100PB = 10^11 MB
+10^11 * 0.4 / (9,2 * 0.5MB + 0.6 * 32MB + 0.2 * 200MB) = 0.68 tỉ objects
+```
+
+Nếu ta giả sử metadata cho mỗi object có kích cỡ là 1KB, ta cần 0.68TB để lưu trữ metadata.
+
+## Bước 2: High level design
+
+Trước khi đi vào phần thiết kế, chúng ta hãy cùng xem xét một vài thuộc tính khá thú vị về object storage.
+
+**Tính bất biến của object**. Object lưu trữ trong object storage là bất biến. Chúng ta có thể xoá hoặc thay thế chúng bằng một version mới chứ không thể thay đổi trực tiếp object được.
+
+**Key-value store**. Chúng ta có thể sử dụng URI để lấy về object data. Với object URI là key, object data là value.
+
+**Ghi một lần, đọc nhiều lần**. Data access pattern cho object data là ghi một lần và đọc nhiều lần. Theo một nghiên cứu của Linkedin, 95% request là thao tác đọc.
+
+**Hỗ trợ cả objects nhỏ và lớn**. Kích cỡ của object rất đa dạng, chúng ta cần hỗ trợ cả hai.
