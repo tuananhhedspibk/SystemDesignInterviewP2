@@ -99,6 +99,33 @@ Trước khi đi vào phần thiết kế, chúng ta hãy cùng xem xét một v
 
 **Hỗ trợ cả objects nhỏ và lớn**. Kích cỡ của object rất đa dạng, chúng ta cần hỗ trợ cả hai.
 
+Nguyên tắc thiết kế của object storage khá giống với UNIX file system. Trong UNIX, chúng ta lưu file trong local file system, filename và file-data không được lưu cùng nhau. Thay vào đó filename được lưu vào một cấu trúc gọi là "inode", file-data được lưu ở một phân vùng khác của ổ đĩa. Inode bao gồm list các file block pointers, các pointers này sẽ trỏ đến các phân vùng trên đĩa chứa file-data tương ứng.
+
+Khi đọc file:
+
+1. Fetch metadata từ inode
+2. Đọc file-data trong phân vùng mà con trỏ tại inode trỏ tới.
+
+Với object storage, ta cũng có cơ chế tương tự, ở đây:
+
+- `inode` → `metadata store`.
+- `hard disk` → `data store`.
+
+Trong UNIX, inode sử dụng `file block pointer` để ghi nhận vị trí của dữ liệu trên ổ đĩa.
+
+Trong object storage, `metadata store` sử dụng `ID` của object đển tìm đến object data trong data store qua network request.
+
+Hình dưới đây sẽ minh hoạ cho hai cơ chế trên.
+
+![Screenshot 2024-04-01 at 8 09 04](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/160e617c-b28f-40fe-87f0-2a183f601ac8)
+
+Việc chia metadata và object data thiết kế trở nên đơn giản hơn. Cũng như có thể triển khai hoặc tối ưu hoá 2 components này một các độc lập.
+
+- DataStore bao gồm các **immutable data**.
+- MetaData Store bao gồm các **mutable data**.
+
+Hình dưới đây sẽ cho thấy bucket và object trông như thế nào.
+
 ### High-level design
 
 <img>
@@ -107,13 +134,13 @@ Trước khi đi vào phần thiết kế, chúng ta hãy cùng xem xét một v
 
 **API service**. Lần lượt gọi đến `Identity & Access Management`, `Metadata Store`, `Data Store`. Service này là stateless nên hoàn toàn có thể thực hiện **horizontal scale** với nó.
 
-**Identity & access management (IAM)**. Phần tử trung tâm trong hệ thống tiến hành xử lí authentication, authorization, access control. 
+**Identity & access management (IAM)**. Phần tử trung tâm trong hệ thống tiến hành xử lí authentication, authorization, access control.
 
 **Data Store**. Lưu và truy xuất object data. Mọi thao tác liên quan đến dữ liệu đều dựa trên object ID (UUID).
 
 **Metadata store**. Lưu metadata của objects.
 
-Lưu ý rằng hai khái niệm `metadata` và `data store` chỉ là các khái niệm mang tính chất logic. 
+Lưu ý rằng hai khái niệm `metadata` và `data store` chỉ là các khái niệm mang tính chất logic.
 
 Sau đây sẽ là các workflow quan trọng đối với một object storage.
 
@@ -138,4 +165,3 @@ Object bắt buộc phải nằm bên trong một bucket. Trong ví dụ ở hì
 #### Download object
 
 <img>
-
