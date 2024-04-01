@@ -98,3 +98,44 @@ Trước khi đi vào phần thiết kế, chúng ta hãy cùng xem xét một v
 **Ghi một lần, đọc nhiều lần**. Data access pattern cho object data là ghi một lần và đọc nhiều lần. Theo một nghiên cứu của Linkedin, 95% request là thao tác đọc.
 
 **Hỗ trợ cả objects nhỏ và lớn**. Kích cỡ của object rất đa dạng, chúng ta cần hỗ trợ cả hai.
+
+### High-level design
+
+<img>
+
+**Load balancer**. Phân bổ đều các requests đến các API servers.
+
+**API service**. Lần lượt gọi đến `Identity & Access Management`, `Metadata Store`, `Data Store`. Service này là stateless nên hoàn toàn có thể thực hiện **horizontal scale** với nó.
+
+**Identity & access management (IAM)**. Phần tử trung tâm trong hệ thống tiến hành xử lí authentication, authorization, access control. 
+
+**Data Store**. Lưu và truy xuất object data. Mọi thao tác liên quan đến dữ liệu đều dựa trên object ID (UUID).
+
+**Metadata store**. Lưu metadata của objects.
+
+Lưu ý rằng hai khái niệm `metadata` và `data store` chỉ là các khái niệm mang tính chất logic. 
+
+Sau đây sẽ là các workflow quan trọng đối với một object storage.
+
+- Upload object
+- Download object
+- Object versioning và listing objects trong một bucket.
+
+#### Upload object
+
+<img>
+
+Object bắt buộc phải nằm bên trong một bucket. Trong ví dụ ở hình trên, đầu tiên chúng ta sẽ tạo một bucket có tên là `bucket-to-share`, sau đó tiến hành upload một file có tên là `script.txt` lên bucket.
+
+1. Client gửi HTTP PUT request để tạo bucket với ên `bucket-to-share`, request sẽ được forward đến cho API service.
+2. API service sẽ gọi đến IAM để đảm bảo user đã được xác thực và có quyền WRITE.
+3. API service sẽ gọi metadata store để tạo entry với bucket info, lưu thông tin đó vào metadata DB. Khi entry được tạo thành công, success message sẽ được trả về phía client.
+4. Sau khi bucket được tạo, client gửi HTTP PUT request để tạo object với tên là `script.txt`.
+5. API service verify user và đảm bảo user có quyền WRITE lên bucket.
+6. Sau khi quá trình validation kết thúc, API service sẽ gửi object data có trong request payload lên data store. Data store sẽ lưu payload như một object và trả về UUID của object.
+7. API service sẽ gọi metadata store để tạo entry mới trong metadata DB. Nó bao gồm các thông tin quan trọng như `object_id`, `bucket_id`, `ọbect_name`, ...
+
+#### Download object
+
+<img>
+
