@@ -126,9 +126,11 @@ Việc chia metadata và object data thiết kế trở nên đơn giản hơn. 
 
 Hình dưới đây sẽ cho thấy bucket và object trông như thế nào.
 
+![Screenshot 2024-04-01 at 22 45 43](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/63bf9f58-5084-4d56-821a-244ef04b4b56)
+
 ### High-level design
 
-<img>
+![Screenshot 2024-04-01 at 22 50 33](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/62d2edc3-acd3-441b-b710-74e1f7266a5d)
 
 **Load balancer**. Phân bổ đều các requests đến các API servers.
 
@@ -150,7 +152,7 @@ Sau đây sẽ là các workflow quan trọng đối với một object storage.
 
 #### Upload object
 
-<img>
+![Screenshot 2024-04-01 at 22 53 39](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/63e3d10d-2b44-425d-a0fb-430faf1fbdb7)
 
 Object bắt buộc phải nằm bên trong một bucket. Trong ví dụ ở hình trên, đầu tiên chúng ta sẽ tạo một bucket có tên là `bucket-to-share`, sau đó tiến hành upload một file có tên là `script.txt` lên bucket.
 
