@@ -166,4 +166,11 @@ Object bắt buộc phải nằm bên trong một bucket. Trong ví dụ ở hì
 
 #### Download object
 
-<img>
+Bucket không có cấu trúc kế thừa thế nhưng chúng ta có thể tạo một cấu trúc kế thừa logic cho nó bằng việc nối "bucket name" và "object name" để mô tả cấu trúc folder. VD: chúng ta sẽ chỉ định tên object là `bucket-to-share/script.txt` thay vì `script.txt`. Để lấy về một object, chúng ta sẽ chỉ định object name trong GET request. API download object sẽ như sau:
+
+![Screenshot 2024-04-02 at 7 55 16](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/b266c1c5-cd68-47df-aefe-b65947ac2846)
+
+Như đã nói ở phần trước, data store không lưu object nam mà sẽ hỗ trợ các thao tác thông qua `object_id (UUID)`. Do đó để lấy về object, đầu tiên ta cần map object name với UUID. Workflow sẽ như sau:
+
+1. Client gửi HTTP GET request tới load balancer: `GET /bucket-to-share/script.txt`.
+2. API service sẽ queries IAM để xác nhận rằng user có quyền `READ` với bucket.
