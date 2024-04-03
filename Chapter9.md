@@ -174,12 +174,37 @@ Như đã nói ở phần trước, data store không lưu object nam mà sẽ h
 
 1. Client gửi HTTP GET request tới load balancer: `GET /bucket-to-share/script.txt`.
 2. API service sẽ queries IAM để xác nhận rằng user có quyền `READ` với bucket.
+3. Sau khi validated, API service fetch object UUID từ metadata store.
+4. Tiếp theo API service sẽ lấy về object từ data store thông qua UUID.
+5. API service trả về object cho client trong GET response.
+
+## Bước 3: Design Deep Dive
+
+### Data store
+
+API service nhận các external requests từ user và gọi đến các internal services để hoàn thiện requests đó. Để lưu hoặc lấy về object, API service gọi data store. Hình dưới đây minh hoạ cho quá trình tương tác giữa API service và data store để upload hoặc download object
+
+![Screenshot 2024-04-03 at 7 59 48](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/ab2c2c8e-3939-43e3-8a44-62f362bc6420)
+
+#### High-level design cho data store
+
+Các main components của data store sẽ như sau
+
+![Screenshot 2024-04-03 at 8 07 10](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/259d1391-1f73-4d16-b52a-416730f1bd30)
+
+#### Data routing service
+
+Data routing service cung cấp RESTful hoặc gRPC APIs để truy cập đến các node cluster. Do là stateless service nên nó có thể được scaled bằng cách thêm các servers mới. Service này có các nhiệm vụ như sau:
+
+- Query đến `placement service` để lấy về data node tốt nhất cho mục đích lưu trữ dữ liệu.
+- Đọc dữ liệu từ data nodes và trả về cho API service.
+- Ghi dữ liệu lên data node.
 
 #### Placement Service
 
 Sẽ chỉ định cụ thể data nodes nào (primary hay replicas) sẽ được chọn để lưu objects. Nó bao gồm một `virtual cluster map`, map này sẽ cung cấp mô hình topo vật lý của cluster. Virtual cluster map sẽ bao gồm thông tin về vị trí của các data nodes - các thông tin này sẽ được placement service sử dụng để đảm bảo rằng các replicas được thực sự phân chia.
 
-<img>
+![Screenshot 2024-04-03 at 22 23 52](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/756e78d0-eb8b-4e71-9800-e60b6b6f9239)
 
 Placement service liên tục monitor các data nodes thông qua heart-beats. Nếu một data node không gửi tín hiệu heart-beat trong khoảng thời gian được quy định trước (có thể là 15s) thì placement service sẽ coi như node đó bị "sập".
 
@@ -211,7 +236,7 @@ Khi placement service nhận heartbeat lần đầu tiên, nó sẽ gán ID cho 
 
 #### Flow lưu trữ dữ liệu
 
-<img>
+![Screenshot 2024-04-03 at 22 36 50](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/27086daf-0162-4b69-9714-09a967de2bd0)
 
 1. API service sẽ gửi object data tới cho `data store`.
 2. Data routing service sẽ gen UUID cho object và queries placement service để tìm data node lưu object. Placement service sẽ check `Virtual cluster map` và trả về `primary data node`.
@@ -225,7 +250,7 @@ Consisten hashing là một giải pháp chung phổ biến cho những chức n
 
 Tại bước 4, trước khi response lại cho data routing service, dữ liệu phải được sao lưu thành công sang tất cả các secondary services, việc này đảm bảo tính thống nhất "mạnh" - strong consistency của dữ liệu nhưng cái giá phải trả đó là độ trễ khi chúng ta phải chờ cho đến khi quá trình replicate trên secondary node chậm nhất kết thúc thì mới thôi.
 
-<img>
+![IMG_2830](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/bdd66ee6-cca8-47a0-8d70-326eb2892a31)
 
 Hình trên đây cho thấy sự đánh đổi (trade-off) giữa tính thống nhất (consistency) và độ trễ (latency).
 
@@ -235,7 +260,7 @@ Hình trên đây cho thấy sự đánh đổi (trade-off) giữa tính thống
 
 Cả 2 cách tiếp cận 2 và 3 đều được xem là `eventual consistency`.
 
-#### Dữ liệu được tổ chức như thế nào.
+#### Dữ liệu được tổ chức như thế nào
 
 Cách xử lí đơn giản nhất ở đây đó là lưu từng object lên từng file riêng. Cách làm này "chạy được" nhưng phải "trả giá" khi có rất nhiều file nhỏ. Hai cái giá phải trả ở đây đó là:
 
@@ -248,6 +273,6 @@ Chúng ta có thể giải quyết vấn đề bằng việc merge các objects 
 
 Hình dưới đây sẽ mô tả quá trình trên.
 
-<img>
+![Screenshot 2024-04-03 at 22 45 34](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/d6878592-9722-4a82-ade3-eb10afd186d6)
 
 Write access tới read-write file cần phải được serialized. Như ở hình trên, các object được lưu trữ một cách nối tiếp nhau trong read-write file. Để đảm bảo thứ tự này, `multiple cores` xử lí các w
