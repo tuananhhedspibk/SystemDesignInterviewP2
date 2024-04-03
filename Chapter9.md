@@ -249,3 +249,5 @@ Chúng ta có thể giải quyết vấn đề bằng việc merge các objects 
 Hình dưới đây sẽ mô tả quá trình trên.
 
 <img>
+
+Write access tới read-write file cần phải được serialized. Như ở hình trên, các object được lưu trữ một cách nối tiếp nhau trong read-write file. Để đảm bảo thứ tự này, `multiple cores` xử lí các w
