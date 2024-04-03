@@ -216,4 +216,36 @@ Khi placement service nhận heartbeat lần đầu tiên, nó sẽ gán ID cho 
 1. API service sẽ gửi object data tới cho `data store`.
 2. Data routing service sẽ gen UUID cho object và queries placement service để tìm data node lưu object. Placement service sẽ check `Virtual cluster map` và trả về `primary data node`.
 3. Data routing service sẽ gửi dữ liệu trực tiếp tới `primary node` với UUID.
-4. 
+4. Primary data node lưu dữ liệu trong local của mình, sau đó tiến hành sao lưu sang 2 replicate node còn lại. Primary node response lại phía data routing service khi dữ liệu được sao lưu hoàn toàn sang các secondary nodes còn lại.
+5. UUID của object (ObjId) được trả về cho API service.
+
+Ở bước 2, input sẽ là UUID của object, placement service sẽ tìm replication group cho object. Làm cách nào placement service có thể thực hiện được điều đó ? Hãy nhớ rằng việc tìm kiếm này sẽ mang tính quyết định và rất quan trọng không những thế nó phải xử lí được ngay cả khi có replication groups mới được thêm vào hoặc bị xoá đi.
+
+Consisten hashing là một giải pháp chung phổ biến cho những chức năng tìm kiếm kiểu này.
+
+Tại bước 4, trước khi response lại cho data routing service, dữ liệu phải được sao lưu thành công sang tất cả các secondary services, việc này đảm bảo tính thống nhất "mạnh" - strong consistency của dữ liệu nhưng cái giá phải trả đó là độ trễ khi chúng ta phải chờ cho đến khi quá trình replicate trên secondary node chậm nhất kết thúc thì mới thôi.
+
+<img>
+
+Hình trên đây cho thấy sự đánh đổi (trade-off) giữa tính thống nhất (consistency) và độ trễ (latency).
+
+1. Dữ liệu được xem là lưu thành công chỉ khi nó được lưu trên tất cả các node. Cách tiếp cận này đảm bảo tính thống nhất cao nhưng độ trễ lớn.
+2. Dữ liệu được xem là lưu thành công khi nó được lưu thành công trên primary và 1 trong số các secondary nodes. Cách tiếp cận này đảm bảo tính thống nhất về mặt dữ liệu cũng như độ trễ ở mức trung bình.
+3. Dữ liệu được xem là lưu thành công khi nó chỉ cần được lưu thành công trên primary mà thôi, cách tiếp cận này đảm bảo tính thống nhất kém nhất nhưng lại cho độ trễ thấp nhất.
+
+Cả 2 cách tiếp cận 2 và 3 đều được xem là `eventual consistency`.
+
+#### Dữ liệu được tổ chức như thế nào.
+
+Cách xử lí đơn giản nhất ở đây đó là lưu từng object lên từng file riêng. Cách làm này "chạy được" nhưng phải "trả giá" khi có rất nhiều file nhỏ. Hai cái giá phải trả ở đây đó là:
+
+1. Lãng phí nhiều data blocks. File system sẽ lưu files trên các disk block rời rạc, mỗi một block sẽ có kích cỡ trung bình là 4KB, việc lưu những file nhỏ (<4KB) sẽ làm lãng phí block khi không tận dụng được hết không gian nhớ của một block đồng thời việc lưu vào block (dù lưu không hết không gian nhớ) cũng sẽ làm cho block đó coi như bị chiếm dụng hoàn toàn.
+2. Có thể gây ra việc tràn số lượng các inode của hệ thống. File system lưu location cũng như các thông tin khác về một file trong một block đặc biệt gọi là inode. Hầu hết các file system đều thiết lập một số lượng các inode cố định khi tiến hành khởi tạo hệ thống. Với hàng triệu file nhỏ, tất cả các inodes của hệ thống sẽ bị chiếm dụng hết. Hơn nữa OS xử lí số lượng lớn các inodes không hề tốt.
+
+Vì 2 lí do trên, việc lưu object dưới dạng file trên thực tế là một sự lựa chọn rất tồi.
+
+Chúng ta có thể giải quyết vấn đề bằng việc merge các objects nhỏ vào một file lớn hơn. Về cơ bản nó sẽ hoạt động giống như write-ahead log (WAL). Khi chúng ta lưu một object, nó sẽ được thêm vào một read-write file đã có sẵn. Khi dung lượng của file đạt tới một ngưỡng đã thiết lập trước đó (thường là vài GBs), `read-write file` sẽ trở thành `read-only` và `read-write file` mới được tạo ra để nhận về các object mới. Khi file trở thành `read-only`, nó sẽ chỉ đáp ứng được các `read-request` mà thôi.
+
+Hình dưới đây sẽ mô tả quá trình trên.
+
+<img>
