@@ -174,3 +174,46 @@ Như đã nói ở phần trước, data store không lưu object nam mà sẽ h
 
 1. Client gửi HTTP GET request tới load balancer: `GET /bucket-to-share/script.txt`.
 2. API service sẽ queries IAM để xác nhận rằng user có quyền `READ` với bucket.
+
+#### Placement Service
+
+Sẽ chỉ định cụ thể data nodes nào (primary hay replicas) sẽ được chọn để lưu objects. Nó bao gồm một `virtual cluster map`, map này sẽ cung cấp mô hình topo vật lý của cluster. Virtual cluster map sẽ bao gồm thông tin về vị trí của các data nodes - các thông tin này sẽ được placement service sử dụng để đảm bảo rằng các replicas được thực sự phân chia.
+
+<img>
+
+Placement service liên tục monitor các data nodes thông qua heart-beats. Nếu một data node không gửi tín hiệu heart-beat trong khoảng thời gian được quy định trước (có thể là 15s) thì placement service sẽ coi như node đó bị "sập".
+
+Đây là một service rất quan trọng do đó nên build một cluster với 5 hoăc 7 placement service node với Paxos hoặc Raft consensus protocol.
+
+Consensus protocol đảm bảo rằng chừng nào có hơn một nửa số nodes là "healthy" thì toàn bộ hệ thống vẫn coi như đang hoạt động tốt.
+
+Lấy ví dụ với placement service cluster với 7 nodes, khi đó cluster này có thể chịu tối đa 3 nodes failure.
+
+#### Data node
+
+Là nơi lưu trữ dữ liệu thực sự của object. Nó cần đảm bảo:
+
+- Tính tin cậy.
+- Độ bền.
+
+bằng việc replicate dữ liệu trên nhiều data nodes (còn được gọi là `replication group`).
+
+Mỗi data node sẽ có data service daemon chạy trên nó. Data service daemon sẽ liên tục gửi heart-beat đến placement service. Heart-beat message sẽ bao gồm các thông tin cơ bản như sau:
+
+- Có bao nhiêu disk drive (HDD hoặc SSD) mà data node quản lí ?
+- Lượng dữ liệu lưu trên mỗi drive là bao nhiêu ?
+
+Khi placement service nhận heartbeat lần đầu tiên, nó sẽ gán ID cho mỗi data node và thêm nó vào virtual cluster map và trả về các thông tin như sau:
+
+- Unique ID của data node
+- Virtual cluster map
+- Nơi replicate dữ liệu
+
+#### Flow lưu trữ dữ liệu
+
+<img>
+
+1. API service sẽ gửi object data tới cho `data store`.
+2. Data routing service sẽ gen UUID cho object và queries placement service để tìm data node lưu object. Placement service sẽ check `Virtual cluster map` và trả về `primary data node`.
+3. Data routing service sẽ gửi dữ liệu trực tiếp tới `primary node` với UUID.
+4. 
