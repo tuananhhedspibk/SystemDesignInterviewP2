@@ -311,6 +311,26 @@ Do chúng ta đã thay đổi ít nhiều lên data node, hãy cùng nhau xem l�
 
 Data reliablity là một yếu tố rất quan trọng đối với storage system. Làm cách nào để phát triển được một storage system đáp ứng cả những yêu cầu về độ bền (durability) của dữ liệu ? Các failure cases cần được xem xét một cách cẩn thận và dữ liệu cũng cần phải được replicated.
 
-### Hardware failure & failure domain
+#### Hardware failure & failure domain
 
 Lỗi liên quan đến phần cứng (hardware failure) là một điều không thể tránh khỏi được. Có những loại thiết bị có độ bền cao thế nhưng chúng ta không thể chỉ dựa vào một hard drive duy nhất để đảm bảo về độ bền của dữ liệu trong hệ thống. Một cách để tăng "độ bền" của dữ liệu đó là replicate dữ liệu trên nhiều hard drives, nhờ đó khi một drive gặp vấn đề thì cũng không ảnh hưởng đến tính sẵn có của dữ liệu. Trong thiết kế, chúng ta sẽ replicate dữ liệu 3 lần.
+
+Ta giả sử rằng hard drive có tỉ lệ lỗi là 0.81%, nếu ta sao lưu dữ liệu 3 lần (tạo 3 bản sao dữ liệu) thì "độ tin cậy" sẽ là `1 - 0.0081^3 = 0.99999`.
+
+Để đánh giá về độ bền của dữ liệu một cách hoàn chỉnh ta cũng cần xem xét đến sự ảnh hưởng của failure domain. Failure domain là một logic section hoặc một section vật lý của môi trường mà ở đó nó sẽ bị ảnh hưởng tiêu cực khi một critical service gặp vấn đề. Trong các hệ thống server lớn, các servers thường được đặt trên cùng một giá đỡ, các giá đỡ này sẽ sẽ được nhóm thành một row/ floor/ room. Trong một giá thì các servers sẽ chia sẻ chung network switches, nguồn điện, các servers trong cùng 1 giá sẽ có `rack-level failure domain`.
+
+Một server hiện đại sẽ chia sẻ các components như `mother-board`, `processor`, `nguồn điện`, `HDD`, ... Các components trong cùng một server sẽ là `node-level failure domain`.
+
+Trong thực tế chúng ta sẽ chia các data center infrastructure từ không share bất kì thứ gì thành phân tán trên nhiều AZ khác nhau (large-scale failure domain isolation), chúng ta sẽ replicate dữ liệu trên nhiều AZ để giảm thiểu rủi ro.
+
+Hãy nhớ rằng, việc lựa chọn `failure domain level` không trực tiếp tăng độ bền cho dữ liệu nhưng nó sẽ giúp tăng độ tin cậy của hệ thống đặc biệt là với các hệ thống lớn khi bị mất điện hoặc gặp thiên tai, ...
+
+<img>
+
+#### Erasure coding
+
+Việc tạo ra 3 bản sao dữ liệu đem lại cho dữ liệu một độ bền cao hơn.
+
+Cũng có một cách khác giúp cải thiện độ bền dữ liệu, đó là `erasure coding`. Cách tiếp cận của `erasure coding` rất khác. Nó sẽ chia nhỏ dữ liệu thành nhiều phần và đặt trên các servers khác nhau, đồng thời tạo ra các cặp "chẵn lẻ dư thừa".
+
+Khi có lỗi xảy ra ta có thể sử dụng các dữ liệu đã được chia nhỏ và các cặp "chẵn lẻ" này để tái cấu trúc lại dữ liệu. 
