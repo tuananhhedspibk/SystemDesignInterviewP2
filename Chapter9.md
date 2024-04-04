@@ -285,7 +285,19 @@ Mỗi một data file lưu giữ rất nhiều objects nhỏ, nhưng làm cách 
 - Starting offset của object trong data file.
 - Kích cỡ của object.
 
-<img>
+| **object_mapping** |
+| ------------------ |
+| **object_id**      |
+| file_name          |
+| start_offset       |
+| object_size        |
+
+| **Field**    | **Description**                       |
+| ------------ | ------------------------------------- |
+| object_id    | UUID của object                       |
+| file_name    | Tên của file chứa object              |
+| start_offset | Địa chỉ bắt đầu của object trong file |
+| object_size  | Số bytes trong object                 |
 
 Với object_mapping, chúng ta sẽ xem xét 2 sự lựa chọn sau:
 
@@ -305,7 +317,7 @@ Do chúng ta đã thay đổi ít nhiều lên data node, hãy cùng nhau xem l�
 3. Một record mới dành cho `object 4` sẽ được thêm vào `object_mapping` table.
 4. Data node service trả UUID về cho API service.
 
-<img>
+![Screenshot 2024-04-04 at 22 46 39](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/ae523755-42bd-44cb-9de9-02832e3fa28b)
 
 ### Durability
 
@@ -325,7 +337,7 @@ Trong thực tế chúng ta sẽ chia các data center infrastructure từ khôn
 
 Hãy nhớ rằng, việc lựa chọn `failure domain level` không trực tiếp tăng độ bền cho dữ liệu nhưng nó sẽ giúp tăng độ tin cậy của hệ thống đặc biệt là với các hệ thống lớn khi bị mất điện hoặc gặp thiên tai, ...
 
-<img>
+![Screenshot 2024-04-04 at 22 49 51](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/0bca93a6-9a08-4255-85ab-fac90892f56f)
 
 #### Erasure coding
 
@@ -333,4 +345,4 @@ Việc tạo ra 3 bản sao dữ liệu đem lại cho dữ liệu một độ b
 
 Cũng có một cách khác giúp cải thiện độ bền dữ liệu, đó là `erasure coding`. Cách tiếp cận của `erasure coding` rất khác. Nó sẽ chia nhỏ dữ liệu thành nhiều phần và đặt trên các servers khác nhau, đồng thời tạo ra các cặp "chẵn lẻ dư thừa".
 
-Khi có lỗi xảy ra ta có thể sử dụng các dữ liệu đã được chia nhỏ và các cặp "chẵn lẻ" này để tái cấu trúc lại dữ liệu. 
+Khi có lỗi xảy ra ta có thể sử dụng các dữ liệu đã được chia nhỏ và các cặp "chẵn lẻ" này để tái cấu trúc lại dữ liệu.
