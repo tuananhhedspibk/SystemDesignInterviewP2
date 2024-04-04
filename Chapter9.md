@@ -297,3 +297,20 @@ Như đã đề cập ở phần trước, pattern của chúng ta ở đây đ�
 Làm cách nào để có thể deploy RDB này ? Ở quy mô hệ thống của chúng ta, kích cỡ của mapping table là rất lớn. Chú ý rằng mapping data là "biệt lập - isolated" hoàn toàn trong một node. Không cần thiết phải shared giữa các nodes. Để tận dụng ưu điểm này, chúng ta có thể đơn thuần là deploy một RDB trên mỗi data node. SQLite là một sự lựa chọn tốt ở đây, nó là một file-based RDB rất phổ biến.
 
 ### Flow update dữ liệu
+
+Do chúng ta đã thay đổi ít nhiều lên data node, hãy cùng nhau xem lại cách lưu object vào data node.
+
+1. API service gửi request để lưu một object mới với tên là `object 4`.
+2. Data node service sẽ thêm object với tên là `object 4` vào cuối read-write file có tên là `/data/c`.
+3. Một record mới dành cho `object 4` sẽ được thêm vào `object_mapping` table.
+4. Data node service trả UUID về cho API service.
+
+<img>
+
+### Durability
+
+Data reliablity là một yếu tố rất quan trọng đối với storage system. Làm cách nào để phát triển được một storage system đáp ứng cả những yêu cầu về độ bền (durability) của dữ liệu ? Các failure cases cần được xem xét một cách cẩn thận và dữ liệu cũng cần phải được replicated.
+
+### Hardware failure & failure domain
+
+Lỗi liên quan đến phần cứng (hardware failure) là một điều không thể tránh khỏi được. Có những loại thiết bị có độ bền cao thế nhưng chúng ta không thể chỉ dựa vào một hard drive duy nhất để đảm bảo về độ bền của dữ liệu trong hệ thống. Một cách để tăng "độ bền" của dữ liệu đó là replicate dữ liệu trên nhiều hard drives, nhờ đó khi một drive gặp vấn đề thì cũng không ảnh hưởng đến tính sẵn có của dữ liệu. Trong thiết kế, chúng ta sẽ replicate dữ liệu 3 lần.
