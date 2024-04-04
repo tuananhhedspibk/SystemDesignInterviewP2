@@ -279,3 +279,21 @@ Write access tới read-write file cần phải được serialized. Như ở h�
 
 #### Object lookup
 
+Mỗi một data file lưu giữ rất nhiều objects nhỏ, nhưng làm cách nào để data node có thể định vị được object bằng UUID ? Data node cần những thông tin sau:
+
+- Data file chứa object.
+- Starting offset của object trong data file.
+- Kích cỡ của object.
+
+<img>
+
+Với object_mapping, chúng ta sẽ xem xét 2 sự lựa chọn sau:
+
+- File-based key-value store như RocksDB: dựa trên SSTable, `ghi nhanh nhưng đọc chậm`.
+- RDB: sử dụng B+ Tree, dựa theo storage engine, `đọc nhanh nhưng ghi chậm`.
+
+Như đã đề cập ở phần trước, pattern của chúng ta ở đây đó là `ghi một lần` và `đọc nhiều lần`. Do đó việc lựa chọn RDB sẽ tốt hơn so với RocksDB.
+
+Làm cách nào để có thể deploy RDB này ? Ở quy mô hệ thống của chúng ta, kích cỡ của mapping table là rất lớn. Chú ý rằng mapping data là "biệt lập - isolated" hoàn toàn trong một node. Không cần thiết phải shared giữa các nodes. Để tận dụng ưu điểm này, chúng ta có thể đơn thuần là deploy một RDB trên mỗi data node. SQLite là một sự lựa chọn tốt ở đây, nó là một file-based RDB rất phổ biến.
+
+### Flow update dữ liệu
