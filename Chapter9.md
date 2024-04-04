@@ -275,4 +275,7 @@ Hình dưới đây sẽ mô tả quá trình trên.
 
 ![Screenshot 2024-04-03 at 22 45 34](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/d6878592-9722-4a82-ade3-eb10afd186d6)
 
-Write access tới read-write file cần phải được serialized. Như ở hình trên, các object được lưu trữ một cách nối tiếp nhau trong read-write file. Để đảm bảo thứ tự này, `multiple cores` xử lí các w
+Write access tới read-write file cần phải được serialized. Như ở hình trên, các object được lưu trữ một cách nối tiếp nhau trong read-write file. Để đảm bảo thứ tự này, các `multiple cores` xử lí các write request song song cần phải "lần lượt" ghi vào read-write file này theo một thứ tự nhất định, với các server hiện đại với một số lượng lớn các cores, thì việc xử lí song song nhiều requests sẽ làm hạn chế đi write throughtput. Để giải quyết vấn đề này chúng ta có thể cung cấp các dedicated read-write files (1 file cho mỗi core processing các requests đến).
+
+#### Object lookup
+
