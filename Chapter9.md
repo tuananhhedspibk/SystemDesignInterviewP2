@@ -346,3 +346,18 @@ Việc tạo ra 3 bản sao dữ liệu đem lại cho dữ liệu một độ b
 Cũng có một cách khác giúp cải thiện độ bền dữ liệu, đó là `erasure coding`. Cách tiếp cận của `erasure coding` rất khác. Nó sẽ chia nhỏ dữ liệu thành nhiều phần và đặt trên các servers khác nhau, đồng thời tạo ra các cặp "chẵn lẻ dư thừa".
 
 Khi có lỗi xảy ra ta có thể sử dụng các dữ liệu đã được chia nhỏ và các cặp "chẵn lẻ" này để tái cấu trúc lại dữ liệu.
+
+<img>
+
+1. Dữ liệu được chia thành bốn phần với kích cỡ bằng nhau (kích cỡ chẵn) d1, d2, d3, d4.
+2. Công thức được sử dụng để tính toán parities p1 và p2.
+3. Dữ liệu trong d3 và d4 bị mất do node crashes.
+4. Sử dụng công thức để khôi phục lại dữ liệu bị mất trong d3 và d4 (bằng việc sử dụng các giá trị đã biết của d1, d2, p1 và p2).
+
+Để có một cái nhìn rõ ràng hơn, chúng ta hãy cùng xem xét hình dưới đây.
+
+<img>
+
+(8+4) erasure coding sẽ chia dữ liệu thành `8 chunks` và tính `4 parities`. Tất cả `12 phần dữ liệu` này phải có cùng kích cỡ.
+
+12 chunks data này sẽ được phân bổ lên 12 failure domains khác nhau. Công thức ở đây sẽ đảm bảo rằng, erasure encoding sẽ đảm bảo cho dữ liệu có thể được tái tạo lại khi có nhiều nhất 4 nodes bị sập.
