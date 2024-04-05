@@ -369,3 +369,52 @@ So sánh với replication, data router chỉ cần đọc dữ liệu của obj
 Một câu hỏi ở đây đó là chúng ta cần bao nhiêu `extra space` cho erasure coding? Với mỗi 2 chunks dữ liệu, chúng ta cần một parity block, do đó với 12 chunks ta cần 6 parities -> lượng bộ nhớ tăng thêm 50%. Với 3-copy replication, lượng bộ nhớ sẽ tăng 200%.
 
 <img>
+
+Liệu rằng erasure coding có tăng độ bền của dữ liệu ? Chúng ta cùng giả sử rằng một node có 0.81% khả năng failed. Theo như công thức tính toán bởi Backblaze, erasure coding có thể đảm bảo `11 nines durability`. Tuy nhiên việc tính toán này đòi hỏi những công thức phức tạp.
+
+Cùng so sánh ưu nhược điểm giữa replication và erasure coding.
+
+|    | **Replication**    | **Erasure coding**                       |
+| ------------ | ------------ | ------------------------------------- |
+| Durability    | 6 nines durability    | 11 nines durability    **Erasure coding win**                  |
+| Hiệu suất lưu trữ    | 200% storage overhead    | 50% storage overhead    **Erasure coding win**           |
+| Compute resource    | Không tính toán **Replication win**  | Nặng về tính toán số lượng parities |
+| Write performance    | Replicate dữ liệu sang nhiều nodes, không cần tính toán  **Replication win** | Mọi thao tác ghi đều đi liền với việc tính toán parities, từ đó làm chậm quá trình ghi dữ liệu                 |
+| Read performance    | Bình thường sẽ luôn đọc dữ liệu từ một replica, trong failure mode, dữ liệu được đọc từ non-fault replica **Replication win**  | Bình thường, các thao tác đọc sẽ đến từ nhiều node trong cluster. Trong failure mode, dữ liệu cần được tái cấu trúc trước khi đọc nên sẽ thao tác đọc sẽ bị chậm                |
+
+Tổng kết lại, replication sẽ đảm bảo latency-sensitive application, erasure coding giúp giảm chi phí lưu trữ. Nhưng việc thiết kế sử dụng erasure sẽ phức tạp hơn so với replication, nên trong ứng dụng lần này chúng ta sẽ tập trung vào phương án replication.
+
+### Xác nhận tính chính xác
+
+Erasure coding giúp giảm giá thành lưu trữ và tăng độ bền cho dữ liệu. Bây giờ chúng ta sẽ chuyển sang việc giải quyết một vấn đề khó hơn đó là: "dữ liệu bị hỏng - thiếu chính xác (data corruption)".
+
+Nếu disk fail hoàn toàn và được phát hiện, nó có thể bị coi như data node failure. Trong trường hợp này, chúng ta có thể tái cấu trúc lại dữ liệu bằng việc sử dụng erasure coding. 
+
+In-memory data corruption là một điều bình thường, hay xảy ra với các hệ thống lớn.
+
+Vấn đề này có thể được phát hiện thông qua việc kiểm tra `checksums` giữa các boundaries của các tiến trình. Checksum là một data-block với kích thước nhỏ, được sử dụng để tìm ra data errors. 
+
+<img>
+
+Nếu chúng ta biết checksum của dữ liệu nguồn, chúng ta có thể tính checksum của dữ liệu sau khi tiến hành transmit:
+
+- Nếu chúng khác nhau, chứng tỏ dữ liệu có vấn đề.
+- Nếu trùng nhau, khả năng cao dữ liệu không gặp vấn đề gì cả. Xác suất khó có thể đạt 100% nhưng trong thực tế, chúng ta có thể giả sử rằng chúng giống nhau.
+
+<img>
+
+Có rất nhiều loại giải thuật checksum (MD5, SHA1, HMAC), một giải thuật checksum được coi là tốt là khi output của nó có sự khác biệt rõ ràng ngay cả khi dữ liệu nguồn chỉ có một sự thay đổi rất nhỏ. Lần này chúng ta lựa chọn giải thuật MD5.
+
+Trong thiết kế lần này, chúng ta sẽ thêm checksum vào cuối mỗi object. Trước khi file được đánh dấu là read-only, chúng ta sẽ thêm checksum của toàn bộ file vào cuối file.
+
+<img>
+
+Với (8 + 4) erasure coding và checksum verification, đây là những gì diễn ra khi chúng ta đọc dữ liệu:
+
+1. Lấy về object data và checksum.
+2. Tính toán checksum với dữ liệu nhận được
+   a. Nếu 2 checksums trùng nhau, dữ liệu không hề gặp lỗi.
+   b. Nếu checksums khác nhau, dữ liệu gặp sự cố. Chúng ta sẽ thử đọc dữ liệu từ các failure domains khác.
+3. Lặp lại 2 bước 1 và 2 cho đến khi tất cả 8 phần dữ liệu được trả về, sau đó chúng ta sẽ tái cấu trúc lại dữ liệu và gửi lại nó cho client.
+
+### Metadata data model
