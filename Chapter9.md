@@ -361,3 +361,11 @@ Khi có lỗi xảy ra ta có thể sử dụng các dữ liệu đã được c
 (8+4) erasure coding sẽ chia dữ liệu thành `8 chunks` và tính `4 parities`. Tất cả `12 phần dữ liệu` này phải có cùng kích cỡ.
 
 12 chunks data này sẽ được phân bổ lên 12 failure domains khác nhau. Công thức ở đây sẽ đảm bảo rằng, erasure encoding sẽ đảm bảo cho dữ liệu có thể được tái tạo lại khi có nhiều nhất 4 nodes bị sập.
+
+<img>
+
+So sánh với replication, data router chỉ cần đọc dữ liệu của object từ một healthy node duy nhất thì trong erasure coding, data router phải đọc dữ liệu từ ít nhất 8 healthy nodes. Đây là một kiến trúc cần phải có sự đánh đổi (Architectural design tradeoff). Chúng ta áp dụng một giải pháp "phức tạp" với `tốc độ truy cập chậm hơn` nhưng đem lại `độ bền dữ liệu cao hơn` và `chi phí lưu trữ thấp hơn`. Với object storage, giá tiền phải trả chủ yếu sẽ là giá thành dùng cho việc lưu trữ thì đây là một giải pháp đáng để thử.
+
+Một câu hỏi ở đây đó là chúng ta cần bao nhiêu `extra space` cho erasure coding? Với mỗi 2 chunks dữ liệu, chúng ta cần một parity block, do đó với 12 chunks ta cần 6 parities -> lượng bộ nhớ tăng thêm 50%. Với 3-copy replication, lượng bộ nhớ sẽ tăng 200%.
+
+<img>
