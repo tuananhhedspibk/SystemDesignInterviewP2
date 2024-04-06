@@ -414,3 +414,35 @@ Với (8 + 4) erasure coding và checksum verification, đây là những gì di
 3. Lặp lại 2 bước 1 và 2 cho đến khi tất cả 8 phần dữ liệu được trả về, sau đó chúng ta sẽ tái cấu trúc lại dữ liệu và gửi lại nó cho client.
 
 ### Metadata data model
+
+#### Schema
+
+Database schema cânf hỗ trợ 3 queries như sau:sau
+
+- Query 1: Tìm object ID bằng object name.
+- Query 2: Insert và delete object dựa theo object name.
+- Query 3: List các objects trong bucket có cùng prefix
+
+![Screenshot 2024-04-06 at 17 12 09](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/877777bd-ba33-460e-83c2-89bd31ec5ae9)
+
+Với schema này, chúng ta có 2 bảng: `bucket` và `object`.
+
+#### Scale bucket table
+
+Do thông thường, số lượng bucket mà 1 user tạo ra thường không nhiều nên số lượng bản ghi của `bucket table` thường sẽ nhỏ. Giả sử chúng ta có 1 triệu users, mỗi user sẽ có 10 buckets và mỗi record có kích cỡ 1KB. Do đó chúng ta cần `1 triệu x 10 x 1KB = 10GB` cho không gian nhớ.
+
+Toàn bộ bảng có thể đưa vào một database server được nhưng một database server có thể không có đủ CPU hoặc băng thông mạng để xử lí tất cả các read requests. Do đó chúng ta sẽ chia read load trên nhiều database replicas.
+
+#### Scale object table
+
+Bảng `object` lưu object metadata. Dataset ở quy mô lần này sẽ không thể đưa vào một database instance duy nhất được. Ta cần scale bảng `object` bằng sharding.
+
+Một lựa chọn để phân mảnh đó là sử dụng `bucket_id`, khi đó tất cả các objects nằm trong cùng một bucket đều được lưu trong cùng một shard. Cách làm này không ổn vì hotspot shards có thể chứa cả tỉ objects.
+
+Một cách làm khác đó là sử dụng `object_id`, cách này sẽ giúp phân bổ object đều đặn lên các shards nhưng không thể thực hiện query 1 và 2 được do 2 câu queries này đều dựa trên URI.
+
+Chúng ta lựa chọn giải pháp shard bằng `bucket_name` và `object_name`. Do hầu hết các thao tác liên quan đến metadata đều dựa theo object URI, ví dụ tìm object ID bằng URI hoặc upload object bằng URI. Để phân bổ dữ liệu một cách đều đặn chúng ta có thể sử dụng giá trị băm của `<bucket_name, object_name>` để làm sharding key.
+
+Cách làm này sẽ hỗ trợ tốt cho query 1 và 2 thế nhưng lại không tốt đối với query cuối cùng.
+
+### Liệt kê các objects trong một bucket
