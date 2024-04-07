@@ -446,3 +446,108 @@ Chúng ta lựa chọn giải pháp shard bằng `bucket_name` và `object_name`
 Cách làm này sẽ hỗ trợ tốt cho query 1 và 2 thế nhưng lại không tốt đối với query cuối cùng.
 
 ### Liệt kê các objects trong một bucket
+
+Object store sẽ sắp xếp các files theo cấu trúc phẳng thay vì cấu trúc kế thừa thừa (file system là cấu trúc kế thừa). Một object có thể được truy cập thông qua path với format `s3://bucket-name/object-name`. VD: `s3://mybucket/abc/d/e/f/file.txt`
+
+- Bucket name: `mybucket`.
+- Object name: `abc/d/e/f/file.txt`.
+
+Để giúp user tổ chức các objects trong bucket, S3 đề xuất khái niệm `prefixes`. Prefix là phần xâu bắt đầu trong object name.
+
+S3 sử dụng prefix để tổ chức dữ liệu theo cách tương tự như directories. Thế nhưng prefixes không phải là directories. Việc liệt kê dựa theo prefix sẽ chỉ cho ra kết qủa là các objects với object name bắt đầu bằng prefix.
+
+Ở ví dụ `s3://mybucket/abc/d/e/f/file.txt` ta có `abc/d/e/f/`.
+
+AWS S3 lisiting command có 3 cách dùng:
+
+1. Liệt kê mọi buckets của user.
+
+```sh
+aws s3 list-buckets
+```
+
+2. Liệt kê mọi objects trong bucket với cùng level như prefix. Command sẽ như sau:
+
+```sh
+aws s3 ls s3://mybucket/abc/
+```
+
+Ví dụ với:
+
+```txt
+CA/cities/losangeles.txt
+CA/cities/sanfranciso.txt
+NY/cities/ny.txt
+federal.txt
+```
+
+Liệt kê bucket với `/` prefix sẽ trả về kết quả như sau:
+
+```txt
+CA/
+NY/
+federal.txt
+```
+
+3. Liệt kê các objects trong một bucket với cùng prefix một cách đệ quy. Command trông sẽ như sau:
+
+```sh
+aws s3 ls s3://mybucket/CA/ --recursive
+```
+
+Với các objects như ở phần `2.`, kết quả thu được sẽ là:
+
+```txt
+CA/cities/losangeles.txt
+CA/cities/sanfranciso.txt
+```
+
+### Single Database
+
+Với single database, ta có thể liệt kê mọi buckets thuộc về user bằng cách chạy query như sau:
+
+```SQL
+SELECT * FROM bucket WHERE owner_id={id}
+```
+
+Để liệt kê các objects trong bucket có cùng prefix trong bucket ta có câu query:
+
+```SQL
+SELECT * FROM object
+WHERE bucket_id = "123" AND object_name LIKE "abc/%";
+```
+
+### Distributed databases
+
+Khi DB được shared, sẽ rất khó để triển khai listing function vì chúng ta không biết shard nào sẽ chứa dữ liệu. Cách làm "ổn" nhất ở đây đó là chạy search query trên tất cả các shards, sau đó "kết tập" kết quả lại. Ta có thể triển khai cách làm này như sau:
+
+1. Metadata service sẽ queries mọi shard với câu query như sau:
+
+```SQL
+SELECT * FROM object
+WHERE bucket_id = "123" AND object_name LIKE "a/b/%";
+```
+
+2. Metadata service sẽ kết tập mọi objects trả về từ các shard và trả về kết quả cho caller.
+
+Cách làm này hoạt động nhưng việc triển khai pagination sẽ hơi phức tạp một chút. Để hiểu rằng tại sao nó lại phức tạp, hãy cùng xem pagination hoạt động như thế nào với single database. Để trả về pages với 10 objects cho mỗi page, SELECT query sẽ như sau:
+
+```SQL
+SELECT * FROM object
+WHERE bucket_id = "123" AND object_name LIKE `a/b/%`;
+ORDER BY object_name OFFSET 0 LIMIT 10;
+```
+
+OFFSET và LIMIT sẽ trả về 10 objects đầu tiên. Với query tiếp theo, ta sẽ set OFFSET bằng 10 để lấy về dữ liệu cho page tiếp theo.
+
+Server sẽ trả về cursor ứng với mỗi page cho client. Thông tin về offset sẽ được mã hoá trong cursor. Client sẽ đưa thông tin về cursor vào trong request cho page tiếp theo. Server giải mã cursor và sử dụng thông tin về offset được embedded trong đó để tạo câu query cho page tiếp theo. Để tiếp tục với ví dụ phía trên, query cho page thứ hai sẽ như sau:
+
+```SQL
+SELECT * FROM metadata
+WHERE bucket_id = "123" AND object_name LIKE `a/b/%`
+ORDER BY object_name OFFSET 10 LIMIT 10;
+```
+
+Quá trình này cứ lặp đi lặp lại cho đến khi server trả về một cursor đặc biệt đánh dấu kết thúc quá trình listing.
+
+Với distributed database, sẽ có những shard trả về full 10 object cho 1 page nhưng cũng có những shard chỉ trả về 1 phần hoặc có những shard không trả về kết quả nào cả.
