@@ -551,3 +551,13 @@ ORDER BY object_name OFFSET 10 LIMIT 10;
 Quá trình này cứ lặp đi lặp lại cho đến khi server trả về một cursor đặc biệt đánh dấu kết thúc quá trình listing.
 
 Với distributed database, sẽ có những shard trả về full 10 object cho 1 page nhưng cũng có những shard chỉ trả về 1 phần hoặc có những shard không trả về kết quả nào cả.
+
+Application code sẽ nhận kết quả trả về từ tất cả các shard, kết tập và sắp xếp sau đó sẽ trả về một page với 10 items.
+
+Object không nằm trong page hiện thời sẽ được đưa vào các pages tiếp theo. Mỗi shard sẽ có một offset khác nhau, server cần phải theo dõi offset của các shard và kết nối chúng lại trong cursor. Nếu có cả trăm shard thì ta cần theo dõi cả trăm offset. Do object storage được điều chỉnh cho mục đích scale và tăng độ bền nên object listing performance thường hiếm khi được ưu tiên.
+
+Trong thực tế, các commercial object storage thường hỗ trợ object listing với sub-optimal performance. Để thực hiện điều này, chúng ta có thể "phi chuẩn hoá" listing data thành một bảng riêng, được shared bằng bucketID. Bảng này chỉ dùng cho listing objects. Với thiết lập này, ngay cả khi buckets có cả tỉ objects, hệ thống vẫn sẽ có được performance ở mức chấp nhận được. Cách làm này giúp "tách biệt" listing query với single database với cách triển khai rất đơn giản.
+
+### Object versioning
+
+Bằng việc lưu trữ nhiều version của object, ta có thể restore objects vô tình vị xoá hoặc ghi đè. Ví dụ như việc ta có thể sửa, và lưu một document trong một bucket dưới cùng một tên.
