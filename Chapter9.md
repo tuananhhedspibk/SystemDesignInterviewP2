@@ -560,4 +560,16 @@ Trong thực tế, các commercial object storage thường hỗ trợ object li
 
 ### Object versioning
 
-Bằng việc lưu trữ nhiều version của object, ta có thể restore objects vô tình vị xoá hoặc ghi đè. Ví dụ như việc ta có thể sửa, và lưu một document trong một bucket dưới cùng một tên.
+Bằng việc lưu trữ nhiều version của object, ta có thể restore objects vô tình vị xoá hoặc ghi đè. Ví dụ như việc ta có thể sửa, và lưu một document trong một bucket dưới cùng một tên, trong cùng một bucket.
+
+Khi không có versioning thì document metadata cũ sẽ được thay thế bởi document metada mới. Version cũ sẽ được đánh dấu là `deleted`, không gian nhớ của nó sẽ bị "dọn dẹp" bởi `garbage collector`.
+
+Khi có versioning thì tất cả các version cuả object đều được giữ lại chứ không hề bị xoá.
+
+![Screenshot 2024-04-09 at 8 14 22](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/0c607f33-aff6-4acb-9423-b17d7afb8b33)
+
+1. Client gửi HTTP PUT request để upload object với tên là `script.txt`.
+2. API Service verify user identity và đảm bảo user có quyền `WRITE` trên bucket.
+3. Sau khi đã verified, API service upload dữ liệu lên data store. Data store lưu dữ liệu dưới dạng một object mới và trả về UUID mới cho API service.
+4. API service gọi metadata store để lưu thông tin metadata của object.
+5.
