@@ -574,9 +574,11 @@ Khi có versioning thì tất cả các version cuả object đều được gi�
 4. API service gọi metadata store để lưu thông tin metadata của object.
 5. Để hỗ trợ versioning, object table cho metadata store có một cột gọi là `object_version`, cột này chỉ được sử dụng khi áp dụng versioning. Thay vì ghi đề lên record đang tồn tại, một record mới sẽ được thêm vào với cùng `object_name`, `bucket_id` nhưng khác `object_id` và `object_version`. `object_id` là UUID cho object mới được trả về từ bước 3. `object_version` là `TIMEUUID` được gen khi một bản ghi mới được đưa vào. Không quan trọng vào loại DB mà chúng ta sử dụng, điều quan trọng ở đây đó là việc tìm kiếm version hiện thời của một object. Version hiện thời sẽ có `TIMEUUID` lớn nhất trong số các bản ghi có cùng `object_name`. Hình dưới đây sẽ mô tả quá trình versioning của metadata.
 
+![Screenshot 2024-04-10 at 22 38 06](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/401de4a2-eca8-4fb2-930e-16bf0d871e61)
+
 Khi chúng ta xoá một object, tất cả các versions cũ vẫn tồn tại trong bucket và chúng ta sẽ insert thêm delete marker như hình dưới đây.
 
-<img>
+![Screenshot 2024-04-10 at 22 39 16](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/e3350924-4119-4ac5-8250-7927c2863102)
 
 `Delete Marker` sẽ là version mới của object và nó sẽ trở thành current version của object. `GET` request khi tìm thấy `delete marker` sẽ trả về lỗi `404 Not Found`.
 
@@ -584,7 +586,7 @@ Khi chúng ta xoá một object, tất cả các versions cũ vẫn tồn tại 
 
 Trong phần back-of-the-envelope estimation, chúng ta giả định ra 20% số lượng objects upload lên là các objects có kích cỡ lớn (có thể hơn vài GBs), việc upload object trực tiếp là điều hoàn toàn có thể, thế nhưng sẽ có những tình huống khi kết nối mạng gặp trục trặc, thì việc upload file có thể bị đình trệ giữa chừng dẫn đến việc phải bắt đầu lại từ đầu. Một giải pháp ở đây có thể là chia nhỏ object to thành các phần nhỏ hơn, sau đó upload những phần nhỏ này lên một cách độc lập. Sau khi upload xong, data store sẽ upload các phần này thành một object hoàn chỉnh. Quá trình này được gọi là `multipart upload`.
 
-<img>
+![Screenshot 2024-04-10 at 22 45 03](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/4d5f7780-ddd9-449d-809d-f3a32cd97c79)
 
 1. Client gọi data store để khởi tạo multiplart upload.
 2. Data store trả về `uploadID` cho phiên upload lần này.
@@ -609,7 +611,7 @@ Garbage collection cũng có trách nhiệm phải dọn dẹp dữ liệu ở t
 
 Hình dưới đây sẽ mô tả về cơ chế compaction hoạt động.
 
-<img>
+![Screenshot 2024-04-10 at 22 45 36](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/a8fa146e-deb4-4226-8cd8-593e9fb4b5a9)
 
 1. Garbage collector sẽ copy các objects từ file `/data/b` sang file `/data/d` ngoại trừ object 2 và object 5 vì chúng được đánh dấu là sẽ bị xoá.
 2. Sau khi copy objects sang file mới, `object_mapping_table` sẽ được cập nhật. `obj_id` vẫn sẽ như cũ chỉ có `file_name` và `offset` là thay đổi ứng với việc re-location cho object ở file mới. Để đảm bảo tính thống nhất về mặt dữ liệu, `file_name` và `offset` sẽ được đưa vào transaction.
