@@ -573,3 +573,25 @@ Khi có versioning thì tất cả các version cuả object đều được gi�
 3. Sau khi đã verified, API service upload dữ liệu lên data store. Data store lưu dữ liệu dưới dạng một object mới và trả về UUID mới cho API service.
 4. API service gọi metadata store để lưu thông tin metadata của object.
 5.
+
+Khi chúng ta xoá một object, tất cả các versions cũ vẫn tồn tại trong bucket và chúng ta sẽ insert thêm delete marker như hình dưới đây.
+
+<img>
+
+`Delete Marker` sẽ là version mới của object và nó sẽ trở thành current version của object. `GET` request khi tìm thấy `delete marker` sẽ trả về lỗi `404 Not Found`.
+
+### Tối ưu hoá khi upload các files lớn
+Trong phần back-of-the-envelope estimation, chúng ta giả định ra 20% số lượng objects upload lên là các objects có kích cỡ lớn (có thể hơn vài GBs), việc upload object trực tiếp là điều hoàn toàn có thể, thế nhưng sẽ có những tình huống khi kết nối mạng gặp trục trặc, thì việc upload file có thể bị đình trệ giữa chừng dẫn đến việc phải bắt đầu lại từ đầu. Một giải pháp ở đây có thể là chia nhỏ object to thành các phần nhỏ hơn, sau đó upload những phần nhỏ này lên một cách độc lập. Sau khi upload xong, data store sẽ upload các phần này thành một object hoàn chỉnh. Quá trình này được gọi là `multipart upload`.
+
+<img>
+
+1. Client gọi data store để khởi tạo multiplart upload.
+2. Data store trả về `uploadID` cho phiên upload lần này.
+3. Client chia nhỏ file to thành các phần nhỏ, giả sử kích cỡ file là 1.6GB, file sẽ được chia thành các phần nhỏ - giả sử kích cỡ mỗi phần này là 200MB, do đó file sẽ được chia thành 8 phần. Phần đầu tiên sẽ được upload cùng với `uploadID` nhận được ở bước 2.
+4. Sau khi một phần của file được upload xong, data store sẽ trả về `ETag` - md5 checksum của phần đó, nó được sử dụng để verify multipart upload.
+5. Sau khi tất cả các phần đã được upload xong, client sẽ gửi complete multipart upload request với (uploadId, Part number và ETag tương ứng)
+6. Data store sẽ lặp ghép các phần object được upload dựa theo part number. Do object có kích cỡ lớn nên quá trình lắp ghép này sẽ tốn thời gian, sau khi có được object hoàn chỉnh, success message sẽ được trả về cho client.
+
+Một vấn đề tiềm tàng khác có thể phát sinh ở đây đó là sau khi tiến hành lắp ghép và thu được object hoàn chỉnh xong, các phần cũ được upload trước đó sẽ trở nên vô nghĩa nên ta cần có một cơ chế dọn dẹp các phần dữ liệu thừa này. Và đây chính là công việc của `garbage collection service`.
+
+### Garbage collection
