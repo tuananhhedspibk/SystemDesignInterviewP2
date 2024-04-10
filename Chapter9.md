@@ -595,3 +595,35 @@ Trong phần back-of-the-envelope estimation, chúng ta giả định ra 20% s�
 Một vấn đề tiềm tàng khác có thể phát sinh ở đây đó là sau khi tiến hành lắp ghép và thu được object hoàn chỉnh xong, các phần cũ được upload trước đó sẽ trở nên vô nghĩa nên ta cần có một cơ chế dọn dẹp các phần dữ liệu thừa này. Và đây chính là công việc của `garbage collection service`.
 
 ### Garbage collection
+
+Garbage collection là quá trình tự động dọn dẹp các storage space không dùng đến nữa. Có một vài cách để dữ liệu trở thành "garbage":
+
+- Lazy object deletion, object được đánh dấu là `delete marked` nhưng không hề được xoá.
+- Orphan data. Dữ liệu được upload một nửa hoặc bị bỏ dở giữa chừng trong quá trình multipart upload.
+- Dữ liệu không pass verify checksum.
+
+Garbage collection sẽ không xoá dữ liệu khỏi data store mà thay vào đó deleted object sẽ được dọn dẹp định kì dựa theo cơ chế nén - compaction mechanism.
+
+Garbage collection cũng có trách nhiệm phải dọn dẹp dữ liệu ở tất cả các replicas. Với replication, chúng ta sẽ xoá object ở cả primary lẫn backup node.
+
+Hình dưới đây sẽ mô tả về cơ chế compaction hoạt động.
+
+<img>
+
+1. Garbage collector sẽ copy các objects từ file `/data/b` sang file `/data/d` ngoại trừ object 2 và object 5 vì chúng được đánh dấu là sẽ bị xoá.
+2. Sau khi copy objects sang file mới, `object_mapping_table` sẽ được cập nhật. `obj_id` vẫn sẽ như cũ chỉ có `file_name` và `offset` là thay đổi ứng với việc re-location cho object ở file mới. Để đảm bảo tính thống nhất về mặt dữ liệu, `file_name` và `offset` sẽ được đưa vào transaction.
+
+Để tránh việc tạo ra quá nhiều file mới, garbage collector sẽ chờ cho đến khi có một số lượng read-only files đủ lớn thì mới compact để số lượng các files mới tạo ra là ít nhất.
+
+## Bước 4: Tổng kết
+
+Phần thiết kế này tập trung vào thiết kế object storage, chúng ta đã liệt kê:
+
+- Cách upload
+- Cách download
+- Cách liệt kê các object
+- Object versioning
+
+Object storage là tổ hợp của data store và metadata store. Chúng ta cũng đã nói về việc dữ liệu sẽ được lưu trữ như thế nào trong data store cũng như cách thức tăng tính tin cậy và độ bền của dữ liệu: replication và ensure coding. Với metadata store chúng ta cũng đã nói về việc multipart upload hoạt động như thế nào và cách thức thiết kế database schema để hỗ trợ các use-cases điển hình.
+
+Đồng thời việc sharding metadata store cũng sẽ hỗ trợ các data volume lớn hơn.
