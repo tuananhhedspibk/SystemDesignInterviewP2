@@ -572,7 +572,7 @@ Khi có versioning thì tất cả các version cuả object đều được gi�
 2. API Service verify user identity và đảm bảo user có quyền `WRITE` trên bucket.
 3. Sau khi đã verified, API service upload dữ liệu lên data store. Data store lưu dữ liệu dưới dạng một object mới và trả về UUID mới cho API service.
 4. API service gọi metadata store để lưu thông tin metadata của object.
-5.
+5. Để hỗ trợ versioning, object table cho metadata store có một cột gọi là `object_version`, cột này chỉ được sử dụng khi áp dụng versioning. Thay vì ghi đề lên record đang tồn tại, một record mới sẽ được thêm vào với cùng `object_name`, `bucket_id` nhưng khác `object_id` và `object_version`. `object_id` là UUID cho object mới được trả về từ bước 3. `object_version` là `TIMEUUID` được gen khi một bản ghi mới được đưa vào. Không quan trọng vào loại DB mà chúng ta sử dụng, điều quan trọng ở đây đó là việc tìm kiếm version hiện thời của một object. Version hiện thời sẽ có `TIMEUUID` lớn nhất trong số các bản ghi có cùng `object_name`. Hình dưới đây sẽ mô tả quá trình versioning của metadata.
 
 Khi chúng ta xoá một object, tất cả các versions cũ vẫn tồn tại trong bucket và chúng ta sẽ insert thêm delete marker như hình dưới đây.
 
@@ -581,6 +581,7 @@ Khi chúng ta xoá một object, tất cả các versions cũ vẫn tồn tại 
 `Delete Marker` sẽ là version mới của object và nó sẽ trở thành current version của object. `GET` request khi tìm thấy `delete marker` sẽ trả về lỗi `404 Not Found`.
 
 ### Tối ưu hoá khi upload các files lớn
+
 Trong phần back-of-the-envelope estimation, chúng ta giả định ra 20% số lượng objects upload lên là các objects có kích cỡ lớn (có thể hơn vài GBs), việc upload object trực tiếp là điều hoàn toàn có thể, thế nhưng sẽ có những tình huống khi kết nối mạng gặp trục trặc, thì việc upload file có thể bị đình trệ giữa chừng dẫn đến việc phải bắt đầu lại từ đầu. Một giải pháp ở đây có thể là chia nhỏ object to thành các phần nhỏ hơn, sau đó upload những phần nhỏ này lên một cách độc lập. Sau khi upload xong, data store sẽ upload các phần này thành một object hoàn chỉnh. Quá trình này được gọi là `multipart upload`.
 
 <img>
