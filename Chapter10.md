@@ -40,19 +40,19 @@ QPS cho user ghi điểm: nếu user chơi 10 game trung bình mỗi ngày thì 
 
 Cập nhật vị trí của user trên leader-board khi user thắng một game. Request params sẽ như sau:
 
-| **Field**  | **Description** | 
-|---|---|
-| user_id |  user thắng game  |
-| points | Số điểm mà người chơi nhận được khi thắng một game |
+| **Field** | **Description**                                    |
+| --------- | -------------------------------------------------- |
+| user_id   | user thắng game                                    |
+| points    | Số điểm mà người chơi nhận được khi thắng một game |
 
 Đây là internal API chỉ có thể được gọi bởi server. Client không được phép gọi API này trực tiếp.
 
 Response sẽ như sau:
 
-| **Name**  | **Description** | 
-|---|---|
-| 200 |  Cập nhật thành công  |
-| 400 | Cập nhật thất bại |
+| **Name** | **Description**     |
+| -------- | ------------------- |
+| 200      | Cập nhật thành công |
+| 400      | Cập nhật thất bại   |
 
 #### GET /v1/scores
 
@@ -67,13 +67,13 @@ Ví dụ về response:
       "user_id": "user_1",
       "user_name": "alice",
       "rank": 1,
-      "score": 976 
+      "score": 976
     },
     {
       "user_id": "user_2",
       "user_name": "bob",
       "rank": 2,
-      "score": 965 
+      "score": 965
     },
   ],
   // ...
@@ -85,9 +85,9 @@ Ví dụ về response:
 
 Lấy về rank của một user cụ thể.
 
-| **Field**  | **Description** | 
-|---|---|
-| user_id |  id của user  |
+| **Field** | **Description** |
+| --------- | --------------- |
+| user_id   | id của user     |
 
 Sample response:
 
@@ -95,7 +95,7 @@ Sample response:
 {
   "user_id": "user_1",
   "rank": 1,
-  "score": 976 
+  "score": 976
 }
 ```
 
