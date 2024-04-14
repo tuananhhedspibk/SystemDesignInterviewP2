@@ -235,4 +235,17 @@ Hash table sẽ map user với score và Skip list map score tới user.
 
 Trong sorted set, user được sắp xếp theo score.
 
-![Screenshot 2024-04-14 at 16 57 40](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/55f24568-8c4a-49b3-86f5-9f230042e1a6)
+![Screenshot 2024-04-14 at 22 20 41](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/4fba6022-9be5-4b83-b051-80bfa37bb5fd)
+
+Skip list là một cấu trúc list cho phép tìm kiếm nhanh. Nó bao gồm:
+
+- Sorted linked list.
+- Multi-level indexes.
+
+![Screenshot 2024-04-14 at 22 28 59](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/d9ad30f5-a8fd-4f6c-8d32-0aa8f6de661c)
+
+Như ở hình ví dụ trên đây, độ phức tạp thời gian của phép insert, remove và tìm kiếm là `O(n)`.
+
+Có một cách để làm cho các thao tác này nhanh hơn đó là đi đến vị trí middle nhanh nhất có thể - giống như binary search làm. Để thực hiện điều này chúng ta thêm level 1 index bỏ qua 1 số nodes, level 2 index bỏ qua một số nodes ở level 1. Các level tiếp theo sẽ bỏ đi một vài nodes của level trước đó. Chúng ta sẽ dừng việc thêm các levels mới cho đến khi khoảng cách giữa các node là `n/2 - 1`, với n là tổng số các nodes.
+
+Như chúng ta cũng có thể thấy ở hình trên thì việc tìm đến node 45 nhanh hơn rất nhiều khi chúng ta có multi-level indexes.
