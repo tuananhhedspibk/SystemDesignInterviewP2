@@ -158,3 +158,81 @@ Khi user thắng 1 game, chúng ta chỉ đơn thuần là tăng giá trị củ
 Với user rank, chúng ta sẽ sắp xếp theo cột score với thứ tự giảm dần.
 
 ![Screenshot 2024-04-12 at 22 32 58](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/3475c258-9382-4fef-b460-1c1046a244d7)
+
+Trong thực tế, bảng leaderboard sẽ có các thông tin khác như `game_id` hay timestamp, ...
+
+Để đơn giản chúng ta giả sử rằng chỉ có leaderboard data của tháng hiện thời được lưu trong bảng leaderboard.
+
+##### Khi user thắng game
+
+![Screenshot 2024-04-14 at 16 20 57](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/e8d4cfdf-e475-4a86-9020-e6d30906fb63)
+
+Giả sử mọi score update đều được tăng 1, nếu user chưa có entry trong leaderboard của tháng, entry đầu tiên sẽ được insert:
+
+```SQL
+INSERT INTO leaderboard (user_id, score) VALUES ('mary1934', 1);
+```
+
+Câu update dữ liệu sẽ như sau:
+
+```SQL
+UPDATE leaderboard SET score = score + 1 WHERE user_id = 'mary1934';
+```
+
+##### Tìm vị trí của user trong leaderboard
+
+![Screenshot 2024-04-14 at 16 25 36](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/22893954-ea40-4ea9-ae47-972d55321c60)
+
+Để lấy về user rank, chúng ta có thể sắp xếp leaderboard table và rank theo score như sau:
+
+```SQL
+SELECT (@rownum := @rownum + 1) AS rank, user_id, score
+FROM leaderboard
+ORDER BY score DESC;
+```
+
+![Screenshot 2024-04-14 at 16 28 57](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/f4eaf379-2a0b-48a3-b8ef-60b1fff2bf21)
+
+Giải pháp này chỉ phát huy tác dụng khi số lượng bản ghi là nhỏ. Khi số lượng bản ghi lớn hơn thì hiệu năng là điều mà ta cần cân nhắc.
+
+Thế nhưng trong thực tế có những user sẽ có cùng điểm vậy nên việc xác định vị trí cho user không chỉ đơn thuần là dựa theo điểm.
+
+SQL DB không quá mạnh khi chúng ta phải xử lí một lượng lớn các thông tin thay đổi liên tục, việc xử lí cả triệu bản ghi có thể sẽ mất khoảng 10s - đây là điều không thể chấp nhận được đối với một ứng dụng yêu cầu tính real-time cao.
+
+Do dữ liệu liên tục thay đổi nên việc sử dụng cache sẽ không đem lại hiệu quả gì nhiều cả.
+
+Với lưu lượng read queries cao thì RDB không phải là giải pháp phù hợp. RDB sẽ phù hợp hơn với các `batch operation`.
+
+Một giải pháp tối ưu hơn đó là chúng ta có thể thêm index và giới hạn số lượng pages để scan mới `LIMIT` như sau:
+
+```SQL
+SELECT (@rownum := @rownum + 1) AS rank, user_id, score
+FROM leaderboard
+ORDER BY score DESC
+LIMIT 10;
+```
+
+Cách tiếp cận này không có khả năng scale cao. Đầu tiên, việc tìm user rank yêu cầu phải scan toàn bộ bảng để biết được rank. Thứ hai, cách tiếp cận này không cung cấp một giải pháp trực tiếp cho việc tìm ra rank của user không nằm trên top của leaderboard.
+
+#### Giải pháp Redis
+
+Chúng ta cần tìm một giải pháp cho cả triệu users và cho phép chúng ta khả năng triển khai dễ dàng các leaderboard operations.
+
+Redis có thể cung cấp cho chúng ta một giải pháp hữu ích, redis là một `in-memory data store` hỗ trợ key-value pairs. Do là in-memory nên nó hỗ trợ fast-read và write.
+
+Redis có một kiểu dữ liệu gọi là `sorted sets` - rất lí tưởng để giải quyết vấn đề của chúng ta.
+
+##### Sorted sets là gì ?
+
+Là một kiểu dữ liệu tương tự như set. Mỗi phần tử của sorted set sẽ tương ứng với score. Các phần tử của set sẽ là unique nhưng score thì có thể lặp lại. Score được sử dụng để rank sorted set sẽ có thứ tự tăng dần.
+
+Sorted set được triển khai bằng hai cấu trúc dữ liệu:
+
+- Hash table.
+- Skip list.
+
+Hash table sẽ map user với score và Skip list map score tới user.
+
+Trong sorted set, user được sắp xếp theo score.
+
+![Screenshot 2024-04-14 at 16 57 40](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/55f24568-8c4a-49b3-86f5-9f230042e1a6)
