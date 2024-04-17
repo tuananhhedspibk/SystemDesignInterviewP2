@@ -313,3 +313,13 @@ ZREVRANK leaderboard_feb_2021 'mary1934'
 ```
 
 4. Lấy về vị trí tương đối của user trên leaderboard
+
+<img width="569" alt="Screenshot 2024-04-18 at 8 19 03" src="https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/95441868-8ea9-42e5-9255-a8b1d1130996">
+
+Đây không phải là một yêu cầu bắt buộc nhưng chúng ta có thể dễ dàng lấy về vị trí tương đối cho user bằng việc tận dụng `ZREVRANGE` với số lượng kết quả trên và dưới user. Ví dụ, nếu user `Mallow007` có rank là 361, chúng ta muốn lấy về 4 người chơi trên và dưới user này, ta có thể chạy câu lệnh như sau:
+
+```sh
+ZREVRANGE leaderboard_feb_2021 357 365
+```
+
+##### Storage requirement
