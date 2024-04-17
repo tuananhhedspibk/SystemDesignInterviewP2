@@ -279,3 +279,37 @@ Với leaderboard của mình chúng ta sẽ sử dụng những thao tác sau �
 1. User ghi điểm
 
 ![Screenshot 2024-04-17 at 8 38 16](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/267ea716-7f77-4bd1-8921-9ee7caf49329)
+
+Mỗi tháng, chúng ta sẽ tạo một leaderboard sorted set và phần của tháng trước sẽ được đưa vào historical data storage. Khi user thắng một trận, họ sẽ được nhận thêm 1 điểm, do đó chúng ta gọi `ZINCRBY` - cộng 1 point cho user hoặc thêm user vào leaderboard nếu user chưa tồn tại. Cú pháp cho `ZINCRBY` sẽ là:
+
+```sh
+ZINCRBY <key> <increment> <user>
+```
+
+2. User lấy về top 10 global leaderboard
+
+![Screenshot 2024-04-17 at 22 43 11](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/93e47e68-d96c-4985-8652-bdf3fea81cfc)
+
+Chúng ta sử dụng `ZREVRANGE` để lấy về members theo thứ tự giảm dần vì chúng ta muốn điểm cao nhất, truyền `WITHSCORES` attribute để đảm bảo rằng trả về tổng số điểm của mỗi user.
+
+```sh
+ZREVRANGE leaderboard_feb_2021 0 9 WITHSCORES
+```
+
+Câu lệnh trên sẽ trả về top 10 players với số điểm cao nhất của `leaderboard_feb_2021` board. Kết quả trả về sẽ như sau:
+
+```txt
+[(user2, score2), (user1, score1), ...]
+```
+
+3. User lấy về vị trí của họ
+
+![Screenshot 2024-04-17 at 22 47 42](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/5e8f9000-b04b-4994-8b92-0d09dc73e47f)
+
+Chúng ta gọi `ZREVRANK` để lấy về rank của user trên leaderboard. Chúng ta gọi `rev version` của câu lệnh vì chúng ta muốn sắp xếp kết quả từ cao xuống thấp.
+
+```sh
+ZREVRANK leaderboard_feb_2021 'mary1934'
+```
+
+4. Lấy về vị trí tương đối của user trên leaderboard
