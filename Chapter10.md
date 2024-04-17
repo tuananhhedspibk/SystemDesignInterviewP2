@@ -266,3 +266,16 @@ WHERE lb1.user_id = {:user_id}
 ```
 
 ##### Triển khai với Redis sorted sets
+
+Với leaderboard của mình chúng ta sẽ sử dụng những thao tác sau đây của Redis:
+
+- `ZADD`: insert user vào set nếu user chưa tồn tại. Ngược lại, sẽ update score cho user, thao tác này tốn `O(log(n))`.
+- `ZINCRBY`: tăng user score, nếu user chưa tồn tại, nó sẽ giả sử score bắt đầu từ 0, thao tác này tốn `O(log(n))`.
+- `ZRANGE / ZREVRANGE`: lấy về range users được sắp xếp bởi score. Chúng ta có thể chỉ định order (range vs revrange), số lượng entries, vị trí bắt đầu. Thao tác này tốn `O(log(n) + m)` với m là số lượng entries sẽ lấy về, n số lượng entries có trong set.
+- `ZRANK / ZREVRANK`: lấy về vị trí của bất kì user nào theo thứ tự tăng/ giảm dần trong thời gian logarithmic.
+
+##### Làm việc với sorted sets
+
+1. User ghi điểm
+
+![Screenshot 2024-04-17 at 8 38 16](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/267ea716-7f77-4bd1-8921-9ee7caf49329)
