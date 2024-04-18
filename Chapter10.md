@@ -333,3 +333,24 @@ Một yếu tố khác cần cân nhắc đó là CPI và I/O usage. Peak QPS �
 Redis đảm bảo lưu trữ "vĩnh viễn", nhưng việc restart Redis instance khá chậm. Thông thường redis được thiết lập với một read replica và khi main instance failed, read replica sẽ được đưa thành main và một read replica mới sẽ được thêm vào.
 
 Ngoài ra chúng ta cần 2 bảng (user và point) trong RDB giống như MySQL. Bảng user sẽ bao gồm `user ID` và `user display name` (trong thực tế có thể có nhiều thuộc tính hơn), bảng point sẽ bao gồm `user ID`, `score`, `timestamp khi user tắng game`.
+
+## Bước 3: Deep Dive Design
+
+### Có nên sử dụng cloud provider hay không
+
+#### Sử dụng services của mình
+
+Khi tiến hành lấy về thông tin của leaderboard, ngoài leaderboard data lưu trong Redis, API server cũng cần query đến MySQL database để lấy về các thông tin khác của user như tên hay profile images, ...
+
+![Screenshot 2024-04-18 at 22 50 15](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/765273bf-2fe2-4351-bb87-3f014fdbfd03)
+
+#### Xây dựng trên cloud
+
+Giả sử chúng ta sử dụng dịch vụ của AWS, có 2 services chính sử dụng ở đây đó là:
+
+- Amazon API Gateway
+- AWS Lambda function
+
+Mô hình sẽ là API Gateway định nghĩa RESTful API endpoint và Lambda function sẽ là handler.
+
+![Screenshot 2024-04-18 at 22 52 10](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/d1d5e3a6-94f4-4c68-80cb-d2a0c2fa9efc)
