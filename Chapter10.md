@@ -354,3 +354,17 @@ Giả sử chúng ta sử dụng dịch vụ của AWS, có 2 services chính s�
 Mô hình sẽ là API Gateway định nghĩa RESTful API endpoint và Lambda function sẽ là handler.
 
 ![Screenshot 2024-04-18 at 22 52 10](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/d1d5e3a6-94f4-4c68-80cb-d2a0c2fa9efc)
+
+AWS Lambda cho phép chúng ta chạy code mà không cần quản lí server, đồng thời sẽ tự động scale dựa theo traffic.
+
+Ở high-level, ứng dụng sẽ gọi đến API Gateway, Gateway sẽ gọi đến lambda function tương ứng với endpoint. Lambda function sẽ chạy các commands trên storage layer (Redis và MySQL), trả về kết quả cho API Gateway, sau đó API Gateway sẽ trả về cho client.
+
+Việc sử dụng lambda function đem lại lợi thế ở chỗ, chúng ta có thể tiến hành auto-scaling khi DAU tăng. Dưới đây sẽ là 2 usecases thường gặp:
+
+##### UseCase-1: Ghi điểm
+
+![Screenshot 2024-04-19 at 8 23 20](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/9064ae17-2aa7-4020-8d7e-b4b1ed73e1c9)
+
+##### UseCase-2: Lấy về leaderboard
+
+![Screenshot 2024-04-19 at 8 22 46](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/9bf45ece-0132-469a-adef-35914f2e4d11)
