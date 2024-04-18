@@ -323,3 +323,13 @@ ZREVRANGE leaderboard_feb_2021 357 365
 ```
 
 ##### Storage requirement
+
+Tôí thiểu, chúng ta cần lưu user id và score. Trường hợp tệ nhất là khi tất cả 25 triệu MAU đều thắng ít nhất 1 game và tất cả user đều có entries trong leaderboard của tháng. Giả sử id là string có 24 kí tự, score là số nguyên 16-bit, chúng ta cần 26 bytes lưu trữ cho mỗi một bản ghi trong leaderboard.
+
+Trong trường hợp tệ nhất, chúng ta cần `26 bytes x 25 triệu = 650 triệu bytes ~ 650MB` cho leaderboard lưu trữ trong Redis cache. Kể cả khi chúng ta cần gấp đôi lượng bọ nhớ để đảm bảo skip list thì một Redis server hiện đại vẫn có thể đáp ứng đầy đủ được.
+
+Một yếu tố khác cần cân nhắc đó là CPI và I/O usage. Peak QPS ở đây là `2500 updates/s` - bản thân một Redis server đơn có thể đảm bảo được thông số này với một hiệu năng ổn.
+
+Redis đảm bảo lưu trữ "vĩnh viễn", nhưng việc restart Redis instance khá chậm. Thông thường redis được thiết lập với một read replica và khi main instance failed, read replica sẽ được đưa thành main và một read replica mới sẽ được thêm vào.
+
+Ngoài ra chúng ta cần 2 bảng (user và point) trong RDB giống như MySQL. Bảng user sẽ bao gồm `user ID` và `user display name` (trong thực tế có thể có nhiều thuộc tính hơn), bảng point sẽ bao gồm `user ID`, `score`, `timestamp khi user tắng game`.
