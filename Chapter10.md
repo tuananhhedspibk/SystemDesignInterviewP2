@@ -425,3 +425,38 @@ Cách tiếp cận này có một vài điểm hạn chế như sau:
 - Khi cần trả về top k kết quả (với k có giá trị lớn) thì việc lấy top k players từ mỗi shard cũng như kết tập và sắp xếp dữ liệu sẽ làm ảnh hưởng đến hiệu năng một cách rõ ràng.
 - Độ trễ sẽ cao nếu chúng ta có nhiều partitions vì query sẽ phải chờ partition chậm nhất.
 - Cách tiếp cận này không cung cấp một giải pháp trực diện cho việc định nghĩa rank đối với từng user cụ thể.
+
+#### Sizing Redis node
+
+Có rất nhiều yếu tố cần phải cân nhắc khi tiến hành điều chỉnh kích cỡ của Redis nodes. Các ứng dụng thiên về ghi sẽ yêu cầu nhiều bộ nhớ hơn, do chúng ta cần phải đảm bảo chứa tất cả các thao tác ghi để tạo snapshot trong trường hợp xảy ra lỗi. Để cho chắc, chúng ta cần cấp phát gấp 2 lần lượng bộ nhớ cần thiết cho các ứng dụng nặng về ghi.
+
+Redis cung cấp một công cụ đó là `Redis benchmark`. Công cụ này cho phép chúng ta có thể giả lập lại việc nhiều clients chạy nhiều queries và trả về số lượng requests trên mỗi giây đối với hardware tương ứng.
+
+#### Giải pháp thay thế mang tên: NoSQL
+
+Chúng ta nên chọn NoSQL thoả mãn các yêu cầu sau:
+
+- Tối ưu hoá cho việc ghi dữ liệu.
+- Mạnh trong việc sắp xếp các items trong cùng một partition theo score.
+
+NoSQL DB như AWS DynamoDB hoặc MongoDB có thể là một sự lựa chọn hợp lí.
+
+Trong phần này chúng ta sẽ sử dụng DynamoDB - đây là một NoSQL DB đáp ứng tốt về hiệu năng cũng như khả năng mở rộng.
+
+Để tăng hiệu năng khi truy cập dữ liệu, chúng ta có thể tạo thêm global secondary indexes thay vì chỉ sử dụng primary key duy nhất.
+
+<img>
+
+Giả sử chúng ta thiết kế leaderboard cho chess game và bảng khởi tạo (không phải ở dạng chuẩn) của chúng ta sẽ như sau:
+
+<img>
+
+Scheme của bảng này có thể hoạt động được nhưng không có khả năng scale tốt. Khi nhiều bản ghi được thêm vào cũng đồng nghĩa với việc chúng ta cần scan toàn bộ bảng để tìm ra top scores.
+
+Để tránh việc linear scan, chúng ta cần thêm indexes. Cách làm đầu tiên đó là sử dụng `game_name#{year-month}` như partition key và score như là sort key.
+
+<img>
+
+Cách làm này gập vấn để ở khâu `high load`. DynamoDB chia dữ liệu trên các nodes bằng `consistent hashing`. Mỗi một item sẽ được phân bổ trên node dựa theo partition key.
+
+Chúng ta luôn muốn dữ liệu được phân bổ đều đặn trên các partitions. Với cách làm hiện tại, dữ liệu cho các khoảng thời gian gần đây sẽ được lưu trong một partition và partition này sẽ trở thành hot partition. Làm cách nào để giải quyết vấn đề này.
