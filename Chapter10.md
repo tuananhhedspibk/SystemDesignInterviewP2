@@ -459,4 +459,22 @@ Scheme của bảng này có thể hoạt động được nhưng không có kh�
 
 Cách làm này gập vấn để ở khâu `high load`. DynamoDB chia dữ liệu trên các nodes bằng `consistent hashing`. Mỗi một item sẽ được phân bổ trên node dựa theo partition key.
 
-Chúng ta luôn muốn dữ liệu được phân bổ đều đặn trên các partitions. Với cách làm hiện tại, dữ liệu cho các khoảng thời gian gần đây sẽ được lưu trong một partition và partition này sẽ trở thành hot partition. Làm cách nào để giải quyết vấn đề này.
+Chúng ta luôn muốn dữ liệu được phân bổ đều đặn trên các partitions. Với cách làm hiện tại, dữ liệu cho các khoảng thời gian gần đây sẽ được lưu trong một partition và partition này sẽ trở thành hot partition. Làm cách nào để giải quyết vấn đề này ?
+
+Chúng ta có thể chia dữ liệu thành n partitions và thêm `partition number (user_id % số lượng partitions)` vào partition key. Pattern này được gọi là `write sharding`.
+
+Write sharding làm tăng độ phức tạp cho cả thao tác đọc và ghi nên do đó hãy cân nhắc nó như một giải pháp cần có sự đánh đổi.
+
+Câu hỏi thứ hai cần phải trả lời đó là, chúng ta cần có bao nhiêu partition ? Nó có thể dựa theo write volume hoặc DAU. Do dữ liệu của cùng một tháng sẽ được chia ra trên nhiều partitions khác nhau nên tải mà một partition phải chịu cũng nhẹ hơn, tuy nhiên để đọc items của một tháng cho trước, chúng ta cần query tất cả các partitions và merge kết quả lại (việc này sẽ làm tăng độ phức tạp cho thao tác đọc).
+
+Partition key sẽ trông như thế này: `gamename#{year-month}#p${partition_number}`.
+
+Bảng dưới đây chính là scheme mới nhất
+
+<img>
+
+Các bản ghi trong cùng một partition sẽ được sắp xếp (locally sorted). Giả sử chúng ta có 3 partitons, để lấy về top 10 leaderboard chúng ta sẽ sử dụng cách tiếp cận gọi là `scatter-gather`.
+
+Đầu tiên chúng ta sẽ lấy về top 10 trong mỗi partition (đây gọi là "scatter"), sau đó app sẽ tiến hành tập hợp và sắp xếp kết quả lại (đây gọi là "gather")
+
+<img>
