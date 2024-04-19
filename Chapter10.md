@@ -368,3 +368,39 @@ Việc sử dụng lambda function đem lại lợi thế ở chỗ, chúng ta c
 ##### UseCase-2: Lấy về leaderboard
 
 ![Screenshot 2024-04-19 at 8 22 46](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/9bf45ece-0132-469a-adef-35914f2e4d11)
+
+Lambda là một giải pháp tuyệt vời vì nó vừa là serverless, vừa hỗ trợ auto-scaling. Điều đó đồng nghĩa với việc chúng ta không cần phải quản lí việc scaling cũng như việc bảo trì và setup môi trường.
+
+Do đó đây là cách tiếp cận phù hợp nếu chúng ta muốn xây dựng game từ 0.
+
+#### Scaling Redis
+
+Chỉ với 5 triệu DAU, chúng ta có thể xử lí nó chỉ với 1 Redis (cho storage và QPS). Thế nhưng giả sử trong trường hợp số lượng DAU là 500 triều (gấp 100 lần ban đầu). Lúc này kịch bản tồi nhất đó là leaderboard sẽ có dung lượng lên tới `65GB` (650MB x 10) và QPS sẽ lên đến `250,000 (2,500 x 100)` queries trên giây. Đó chính là lúc chúng ta cần tới sharding.
+
+##### Data sharding
+
+Chúng ta có hai giải pháp cho sharding:
+
+- Fixed partitions.
+- Hash partitions.
+
+##### Fixed partition
+
+Một cách để hiểu fixed partition đó là nhìn vào khoảng points trên leaderboard. Giả sử trong thực tế khoảng point sẽ đi từ 1 - 1000, chúng ta sẽ chia thành 10 shards, mỗi shard sẽ chiếm khoảng 100 score (1 - 100, 101 - 200, 201 - 300, ...).
+
+<img>
+
+Để cách làm này phát huy tác dụng, chúng ta cần đảm bảo sự phân bổ score "đều" trên các shards, để làm được điều đó chúng ta có thể sẽ phải chỉnh sửa score range của mỗi shard. Trong cách tiếp cận này, chúng ta sẽ shard dữ liệu trên application code.
+
+Khi chúng ta insert hoặc update score cho user, chúng ta cần biết user thuộc về shard nào. Chúng ta có thể làm điều này bằng cách tính toán score hiện thời của user từ MySQL DB. Cách làm này có thể hoạt động được nhưng nếu tính đến vấn đề về hiệu năng thì chúng ta nên có một cache cấp 2 (secondary cache) để lưu mapping từ user ID với score.
+
+Chúng ta cũng cần phải cẩn thận khi user tăng score và di chuyển giữa các shards. Trong trường hợp này chúng ta cần loại bỏ user khỏi shard hiện thời và thêm vào shard mới.
+
+Để lấy về top 10 người chơi với điểm số cao nhất, chúng ta sẽ lấy về 10 người chơi với điểm số cao nhất trong `sorted set` chứa khoảng điểm cao nhất. Như ở hình trên sẽ là `[901, 1000]`.
+
+Để tính rank của user, chúng ta cần tính rank của user trong local shard cũng như các user với điểm số cao hơn trên tất cả các shards.
+
+Chú ý rằng, tổng số người chơi trong shard có thể lấy về bằng việc chạy `info keyspace` command trong thời gian `O(1)`.
+
+##### Hash partition
+
