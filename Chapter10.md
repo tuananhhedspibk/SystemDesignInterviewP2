@@ -404,3 +404,24 @@ Chú ý rằng, tổng số người chơi trong shard có thể lấy về bằ
 
 ##### Hash partition
 
+Cách tiếp cận thứ hai đó là sử dụng Redis cluster. Redis cluster cung cấp một giải pháp giúp tự động shard dữ liệu trên các Redis nodes.
+
+Không sử dụng consistent hashing nhưng khác với cách làm sharding quy chuẩn, mỗi key là một phần của `hash slot`. Có `16384` hash slots, chúng ta có thể tính hash slot cho key bằng phép tính `CRC16(key) % 16384`. Cách làm này cho phép chúng ta có thể thêm cũng như loại bỏ đi nodes trong cluster một cách dễ dàng mà không cần phải sắp xếp lại các keys.
+
+<img>
+
+Ở hình trên ta thấy:
+
+- Node đầu tiên gồm các hash slots `[0, 5500]`.
+- Node thứ hai gồm các hash slots `[5501, 11000]`.
+- Node thứ ba gồm các hash slots `[11000, 16383]`.
+
+Việc update diễn ra rất đơn giản khi chỉ cần thay đổi score của user trong shard tương ứng (`CRC16(key) % 16384`). Việc lấy ra top 10 players sẽ phức tạp hơn đôi chút khi phải lấy ra top 10 players của mỗi shard, tập hợp chúng lại và thực hiện sort dữ liệu. Các câu queries top 10 players này sẽ được chạy song song với mục đích giảm đi độ trễ.
+
+<img>
+
+Cách tiếp cận này có một vài điểm hạn chế như sau:
+
+- Khi cần trả về top k kết quả (với k có giá trị lớn) thì việc lấy top k players từ mỗi shard cũng như kết tập và sắp xếp dữ liệu sẽ làm ảnh hưởng đến hiệu năng một cách rõ ràng.
+- Độ trễ sẽ cao nếu chúng ta có nhiều partitions vì query sẽ phải chờ partition chậm nhất.
+- Cách tiếp cận này không cung cấp một giải pháp trực diện cho việc định nghĩa rank đối với từng user cụ thể.
