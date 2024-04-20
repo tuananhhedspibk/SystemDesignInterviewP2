@@ -478,3 +478,35 @@ Các bản ghi trong cùng một partition sẽ được sắp xếp (locally so
 Đầu tiên chúng ta sẽ lấy về top 10 trong mỗi partition (đây gọi là "scatter"), sau đó app sẽ tiến hành tập hợp và sắp xếp kết quả lại (đây gọi là "gather")
 
 ![Screenshot 2024-04-20 at 11 29 46](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/1aba54ee-cd9c-48ac-a57f-71c1f1965ccf)
+
+Làm cách nào để chọn ra số lượng partitions phù hợp? Đây có lẽ là điều cần phải có sự cân nhắc thật là cẩn thận. Việc tăng số lượng partitions sẽ giúp giảm tải cho từng partition nhưng lại tăng độ phức tạp như việc chúng ta cần scatter trên nhiều partitions để build leaderboard cuối cùng.
+
+Trong thực tế thay vì đưa ra rank trực tiếp cho user, ta có thể đưa ra con số % liên quan đến vị trí của user. VD: user đang ở trên top 10 ~ 20% sẽ tốt hơn là vị trí hiện thời của user là 1,200,001.
+
+Do đó nếu hệ thống đủ lớn, chúng ta hãy nghĩ đến việc sharding. Chúng ta có thể giả sử rằng score được phân bổ đều trên các shards. Nếu giả thiết này đúng, chúng có thể có một cron job analyze sự phân bố của score trên mỗi shard như sau:
+
+- % thứ 10 = score < 100
+- % thứ 20 = score < 500
+- ...
+- % thứ 90 = score < 6500
+
+## Bước 4: Tổng kết
+
+Trong chương này chúng ta đã đưa ra giải pháp cho việc xây dựng real-time game leaderboard với quy mô lên đến cả triệu DAU.
+
+Chúng ta đã thử cách tiếp cận trực tiếp với MySQL DB nhưng cách làm này không hợp lí vì nó không đáp ứng cho quy mô lên đến cả triệu users.
+
+Chúng ta sử dụng Redis sorted sets, scaling cho khoảng 500 triệu DAU bằng cách sharding trên nhiều Redis caches.
+
+Trong trường hợp có nhiều thời gian hơn, bạn có thể đề cập đến một vài topics khác như sau:
+
+### Truy vấn nhanh hơn và xoá bỏ đi sự phụ thuộc
+
+Redis hash cung cấp map giữa string fields và values. Chúng ta có thể chia ra thành 2 trường hợp:
+
+1. Lưu trữ map giữa user id và user object, với cách làm này thay vì phải truy vấn vào DB để lấy user object chúng ta có thể lấy ra luôn từ Redis hash.
+2. Trong trường hợp 2 players có cùng điểm số, ta có thể rank player dựa theo việc ai có được số điểm đó trước. Khi chúng ta tăng số điểm của user, chúng ta cũng có thể lưu map của user id với timestamp của game thắng gần nhất. Trong trường hợp hai players có cùng điểm số, user với timestamp cũ hơn sẽ có rank cao hơn.
+
+### System failure recovery
+
+Redis cluster có thể tiềm tàng các nguy cơ gặp lỗi. Với thiết kế như trên, chúng ta có thể tạo một script tận dụng việc MySQL DB ghi lại entry với timestamp mỗi khi user thắng một game. Chúng ta có thể lặp qua mọi entries cho mỗi user, gọi `ZINCRBY` cho mỗi entry của từng user. Điều này sẽ cho phép việc tái tạo leaderboard offline nếu cần thiết.
