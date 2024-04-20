@@ -314,7 +314,7 @@ ZREVRANK leaderboard_feb_2021 'mary1934'
 
 4. Lấy về vị trí tương đối của user trên leaderboard
 
-<img width="569" alt="Screenshot 2024-04-18 at 8 19 03" src="https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/95441868-8ea9-42e5-9255-a8b1d1130996">
+![Screenshot 2024-04-18 at 8 19 03](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/95441868-8ea9-42e5-9255-a8b1d1130996)
 
 Đây không phải là một yêu cầu bắt buộc nhưng chúng ta có thể dễ dàng lấy về vị trí tương đối cho user bằng việc tận dụng `ZREVRANGE` với số lượng kết quả trên và dưới user. Ví dụ, nếu user `Mallow007` có rank là 361, chúng ta muốn lấy về 4 người chơi trên và dưới user này, ta có thể chạy câu lệnh như sau:
 
@@ -388,7 +388,7 @@ Chúng ta có hai giải pháp cho sharding:
 
 Một cách để hiểu fixed partition đó là nhìn vào khoảng points trên leaderboard. Giả sử trong thực tế khoảng point sẽ đi từ 1 - 1000, chúng ta sẽ chia thành 10 shards, mỗi shard sẽ chiếm khoảng 100 score (1 - 100, 101 - 200, 201 - 300, ...).
 
-<img>
+![Screenshot 2024-04-20 at 11 16 57](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/88fa0222-722f-4d42-9720-e3c636e7bd99)
 
 Để cách làm này phát huy tác dụng, chúng ta cần đảm bảo sự phân bổ score "đều" trên các shards, để làm được điều đó chúng ta có thể sẽ phải chỉnh sửa score range của mỗi shard. Trong cách tiếp cận này, chúng ta sẽ shard dữ liệu trên application code.
 
@@ -408,7 +408,7 @@ Cách tiếp cận thứ hai đó là sử dụng Redis cluster. Redis cluster c
 
 Không sử dụng consistent hashing nhưng khác với cách làm sharding quy chuẩn, mỗi key là một phần của `hash slot`. Có `16384` hash slots, chúng ta có thể tính hash slot cho key bằng phép tính `CRC16(key) % 16384`. Cách làm này cho phép chúng ta có thể thêm cũng như loại bỏ đi nodes trong cluster một cách dễ dàng mà không cần phải sắp xếp lại các keys.
 
-<img>
+![Screenshot 2024-04-20 at 11 20 10](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/75b66c12-0218-4f6d-bd3a-206edc51f57f)
 
 Ở hình trên ta thấy:
 
@@ -418,7 +418,7 @@ Không sử dụng consistent hashing nhưng khác với cách làm sharding quy
 
 Việc update diễn ra rất đơn giản khi chỉ cần thay đổi score của user trong shard tương ứng (`CRC16(key) % 16384`). Việc lấy ra top 10 players sẽ phức tạp hơn đôi chút khi phải lấy ra top 10 players của mỗi shard, tập hợp chúng lại và thực hiện sort dữ liệu. Các câu queries top 10 players này sẽ được chạy song song với mục đích giảm đi độ trễ.
 
-<img>
+![Screenshot 2024-04-20 at 11 28 33](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/c980689b-b050-4d22-986b-4b1cefccb9f3)
 
 Cách tiếp cận này có một vài điểm hạn chế như sau:
 
@@ -445,17 +445,17 @@ Trong phần này chúng ta sẽ sử dụng DynamoDB - đây là một NoSQL DB
 
 Để tăng hiệu năng khi truy cập dữ liệu, chúng ta có thể tạo thêm global secondary indexes thay vì chỉ sử dụng primary key duy nhất.
 
-<img>
+![Screenshot 2024-04-20 at 11 32 47](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/9c8252e9-e16f-44f6-84eb-05d9b9a00a4e)
 
 Giả sử chúng ta thiết kế leaderboard cho chess game và bảng khởi tạo (không phải ở dạng chuẩn) của chúng ta sẽ như sau:
 
-<img>
+![Screenshot 2024-04-20 at 11 28 51](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/9c805a74-2c34-4a5b-afdd-175e73a7d60a)
 
 Scheme của bảng này có thể hoạt động được nhưng không có khả năng scale tốt. Khi nhiều bản ghi được thêm vào cũng đồng nghĩa với việc chúng ta cần scan toàn bộ bảng để tìm ra top scores.
 
 Để tránh việc linear scan, chúng ta cần thêm indexes. Cách làm đầu tiên đó là sử dụng `game_name#{year-month}` như partition key và score như là sort key.
 
-<img>
+![Screenshot 2024-04-20 at 11 29 11](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/41b9045c-dec3-46a4-aba8-fb72f5f3a476)
 
 Cách làm này gập vấn để ở khâu `high load`. DynamoDB chia dữ liệu trên các nodes bằng `consistent hashing`. Mỗi một item sẽ được phân bổ trên node dựa theo partition key.
 
@@ -471,10 +471,10 @@ Partition key sẽ trông như thế này: `gamename#{year-month}#p${partition_n
 
 Bảng dưới đây chính là scheme mới nhất
 
-<img>
+![Screenshot 2024-04-20 at 11 29 25](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/0589ece1-8db5-44a0-8d05-cd0d8ca25af6)
 
 Các bản ghi trong cùng một partition sẽ được sắp xếp (locally sorted). Giả sử chúng ta có 3 partitons, để lấy về top 10 leaderboard chúng ta sẽ sử dụng cách tiếp cận gọi là `scatter-gather`.
 
 Đầu tiên chúng ta sẽ lấy về top 10 trong mỗi partition (đây gọi là "scatter"), sau đó app sẽ tiến hành tập hợp và sắp xếp kết quả lại (đây gọi là "gather")
 
-<img>
+![Screenshot 2024-04-20 at 11 29 46](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/1aba54ee-cd9c-48ac-a57f-71c1f1965ccf)
