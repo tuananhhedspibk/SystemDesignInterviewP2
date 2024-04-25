@@ -17,6 +17,6 @@ Khi nhắc đến trao đổi chứng khoán, thông thường chúng ta sẽ ng
 - Về risk check ta có thể ví dụ đơn giản như sau: user chỉ có thể mua tối đa 1 triệu Apple stock trong một ngày.
 - Chúng ta cũng cần đảm bảo rằng users có đủ lượng tiền để có thể đặt lệnh.
 
-  ### Non-functional requirements
+### Non-functional requirements
 
-  - **Tính sẵn có**
+- **Tính sẵn có**
