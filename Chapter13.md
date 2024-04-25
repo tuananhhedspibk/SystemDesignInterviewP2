@@ -11,4 +11,12 @@ Khi nhắc đến trao đổi chứng khoán, thông thường chúng ta sẽ ng
 ## Bước 1: Hiểu vấn đề và phạm vi thiết kế
 
 - Hệ thống chỉ tập trung vào stock trading.
-- 
+- Hệ thống cần hỗ trợ: đặt lệnh mới (new order), cancel lệnh (order canceling), với order type, hệ thống chỉ cần hỗ trợ limit order (hạn chế đặt lệnh).
+- Hệ thống chỉ cần hỗ trợ trading hours thông thường.
+- Client có thể đặt một số lệnh nhất định, cancel chúng cũng như nhận về các kết quả trading real-time. Client có thể xem được real-time order book (danh sách lệnh mua và bán). Cần hỗ trợ ít nhất 10,000 users trading tại cùng một thời điểm. Về trading volume, chúng ta cần hỗ trợ cỡ "tỉ" orders mỗi ngày. Cần đảm bảo có risk check.
+- Về risk check ta có thể ví dụ đơn giản như sau: user chỉ có thể mua tối đa 1 triệu Apple stock trong một ngày.
+- Chúng ta cũng cần đảm bảo rằng users có đủ lượng tiền để có thể đặt lệnh.
+
+  ### Non-functional requirements
+
+  - **Tính sẵn có**
