@@ -75,3 +75,39 @@ L3 cho thấy các mức giá và queued quantity ở mỗi mức giá
 Biểu đồ nên hiển thị giá cổ phiếu theo từng khoảng thời gian. Một biểu đồ nến điển hình trông sẽ như sau:
 
 ![Screenshot 2024-05-11 at 21 47 03](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/2cec5706-2a93-4f7a-ae3e-d57bea11c98e)
+
+#### FIX
+
+FIX protocol - Financial Information exchange protocol
+
+#### High-level design
+
+![Screenshot 2024-05-12 at 22 30 02](https://github.com/tuananhhedspibk/tuananhhedspibk.github.io/assets/15076665/b82726c2-4e44-4153-ab83-004617e1d48a)
+
+Đầu tiên chúng ta sẽ nói về `trading flow`.
+
+Bước 1: Client đặt lệnh qua broker web hoặc mobile app.
+
+Bước 2: Broker gửi lệnh đến cho exchange.
+
+Bước 3: Lệnh sẽ đi đến exchange qua client gateway. Client gateway sẽ thực hiện các chức năng gatekeeping cơ bản như "input validation", "rate limiting", "authentication", ... Client gateway sau đó sẽ forward lệnh cho order manager.
+
+Bước 4 - 5: Lệnh sẽ được thực hiện risk check bởi risk manager.
+
+Bước 6: Sau khi pass risk check, order manager sẽ verify số tiền còn lại có trong wallet có đủ để đặt lệnh hay không.
+
+Bước 7 - 9: Lệnh được gửi đến matching engine. Nếu match, matching engine sẽ đưa ra 2 sự thực thi (còn được gọi là fills), một cho bên mua và một cho bên bán. Để đảm kết quả matching khi tái hiện thì cả lệnh (orders) và thực thi (executions) được sắp xếp thứ tự bên trong sequencer.
+
+Bước 10 - 14: Executions được trả về cho client.
+
+Với `market data flow`.
+
+Bước M1: Matching engine sẽ generate fills streams. Stream sẽ được gửi đến `Market data publisher`.
+
+Bước M2: Market data publisher sẽ tạo biểu đồ nến và order book từ stream nhận về từ matching engine. Sau đó nó sẽ gửi market data cho data service.
+
+Bước M3: Market data được lưu vào một bộ nhớ đặc biệt dùng cho mục đích `real-time analytics`. Brokers kết nối với data service để lấy về market data đều đặn. Broker sau đó sẽ trả về market data cho client.
+
+Cuối cùng là `reporting flow`.
+
+Bước R1 - R2: Reporter sẽ thu thập tất cả các reporting fields cần thiết như (client_id, price, quantity, ...) từ orders và executions, sau đó nó sẽ ghi bản ghi hợp nhất các fields trên vào DB.
